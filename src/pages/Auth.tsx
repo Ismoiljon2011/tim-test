@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { Loader2, Lock, User, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,18 +13,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 const signInSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 const signUpSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
   username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 type SignInFormData = z.infer<typeof signInSchema>;
 type SignUpFormData = z.infer<typeof signUpSchema>;
+
+// Convert username to internal email format for Supabase auth
+const usernameToEmail = (username: string) => `${username.toLowerCase()}@testplatform.internal`;
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -43,7 +45,7 @@ export default function Auth() {
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
-      email: '',
+      username: '',
       password: '',
     },
   });
@@ -51,15 +53,15 @@ export default function Auth() {
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
-      email: '',
-      password: '',
       username: '',
+      password: '',
     },
   });
 
   const handleSignIn = async (data: SignInFormData) => {
     setIsLoading(true);
-    const { error } = await signIn(data.email, data.password);
+    const email = usernameToEmail(data.username);
+    const { error } = await signIn(email, data.password);
     setIsLoading(false);
 
     if (error) {
@@ -67,7 +69,7 @@ export default function Auth() {
         variant: 'destructive',
         title: 'Sign in failed',
         description: error.message === 'Invalid login credentials'
-          ? 'Invalid email or password. Please try again.'
+          ? 'Invalid username or password. Please try again.'
           : error.message,
       });
     } else {
@@ -81,13 +83,14 @@ export default function Auth() {
 
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
-    const { error } = await signUp(data.email, data.password, data.username);
+    const email = usernameToEmail(data.username);
+    const { error } = await signUp(email, data.password, data.username);
     setIsLoading(false);
 
     if (error) {
       let message = error.message;
       if (message.includes('already registered')) {
-        message = 'This email is already registered. Please sign in instead.';
+        message = 'This username is already taken. Please choose another.';
       }
       toast({
         variant: 'destructive',
@@ -97,8 +100,10 @@ export default function Auth() {
     } else {
       toast({
         title: 'Account created!',
-        description: 'Please check your email to verify your account.',
+        description: 'You can now sign in with your username.',
       });
+      setIsSignUp(false);
+      signUpForm.reset();
     }
   };
 
@@ -120,19 +125,19 @@ export default function Auth() {
             </CardTitle>
             <CardDescription>
               {isSignUp
-                ? 'Enter your details to get started'
-                : 'Sign in to access your tests and results'}
+                ? 'Choose a username to get started'
+                : 'Sign in with your username'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isSignUp ? (
               <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="signup-username">Username</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="username"
+                      id="signup-username"
                       placeholder="johndoe"
                       className="pl-10"
                       {...signUpForm.register('username')}
@@ -143,27 +148,11 @@ export default function Auth() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
-                      className="pl-10"
-                      {...signUpForm.register('email')}
-                    />
-                  </div>
-                  {signUpForm.formState.errors.email && (
-                    <p className="text-sm text-destructive">{signUpForm.formState.errors.email.message}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="password"
+                      id="signup-password"
                       type="password"
                       placeholder="••••••••"
                       className="pl-10"
@@ -188,27 +177,26 @@ export default function Auth() {
             ) : (
               <form onSubmit={signInForm.handleSubmit(handleSignIn)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="signin-username">Username</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
+                      id="signin-username"
+                      placeholder="johndoe"
                       className="pl-10"
-                      {...signInForm.register('email')}
+                      {...signInForm.register('username')}
                     />
                   </div>
-                  {signInForm.formState.errors.email && (
-                    <p className="text-sm text-destructive">{signInForm.formState.errors.email.message}</p>
+                  {signInForm.formState.errors.username && (
+                    <p className="text-sm text-destructive">{signInForm.formState.errors.username.message}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="signin-password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="password"
+                      id="signin-password"
                       type="password"
                       placeholder="••••••••"
                       className="pl-10"
