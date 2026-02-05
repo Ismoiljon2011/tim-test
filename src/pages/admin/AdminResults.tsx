@@ -69,13 +69,27 @@ export default function AdminResults() {
           max_score,
           completed_at,
           time_taken_seconds,
-          user:profiles!test_results_user_id_fkey(username, display_name),
-          test:tests!test_results_test_id_fkey(title)
+          user_id,
+          test:tests(title)
         `)
         .order('completed_at', { ascending: false });
 
       if (resultsData) {
-        setResults(resultsData as unknown as TestResult[]);
+        // Fetch profiles separately since there's no direct FK
+        const userIds = [...new Set(resultsData.map(r => r.user_id))];
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('user_id, username, display_name')
+          .in('user_id', userIds);
+        
+        const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+        
+        const enrichedResults = resultsData.map(r => ({
+          ...r,
+          user: profilesMap.get(r.user_id) || null,
+        }));
+        
+        setResults(enrichedResults as unknown as TestResult[]);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
