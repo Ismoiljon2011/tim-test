@@ -12,19 +12,21 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-const sidebarItems = [
-  { icon: LayoutDashboard, label: 'Overview', path: '/admin' },
-  { icon: FileText, label: 'Tests', path: '/admin/tests' },
-  { icon: Users, label: 'Users', path: '/admin/users' },
-  { icon: Trophy, label: 'Results', path: '/admin/results' },
-  { icon: Settings, label: 'Settings', path: '/admin/settings' },
-];
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function Admin() {
   const location = useLocation();
+  const { t } = useLanguage();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const sidebarItems = [
+    { icon: LayoutDashboard, label: t('admin.overview'), path: '/admin' },
+    { icon: FileText, label: t('admin.tests'), path: '/admin/tests' },
+    { icon: Users, label: t('admin.users'), path: '/admin/users' },
+    { icon: Trophy, label: t('admin.results'), path: '/admin/results' },
+    { icon: Settings, label: t('admin.settings'), path: '/admin/settings' },
+  ];
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
@@ -87,7 +89,7 @@ export default function Admin() {
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <ChevronLeft className="h-5 w-5" />
-              {!sidebarCollapsed && <span>Back to App</span>}
+              {!sidebarCollapsed && <span>{t('admin.backToApp')}</span>}
             </Link>
           </div>
         </div>

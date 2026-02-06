@@ -1,38 +1,74 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Trophy, Users, Sparkles, CheckCircle } from 'lucide-react';
+import { ArrowRight, BookOpen, Trophy, Users, Sparkles, CheckCircle, Newspaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
 
-const features = [
-  {
-    icon: BookOpen,
-    title: 'Rich Math Support',
-    description: 'Create questions with complex mathematical equations, fractions, and symbols.',
-  },
-  {
-    icon: Trophy,
-    title: 'Instant Results',
-    description: 'Get your score immediately after completing a test with detailed analytics.',
-  },
-  {
-    icon: Users,
-    title: 'Multi-User Support',
-    description: 'Assign tests to specific users or make them public for everyone.',
-  },
-];
-
-const benefits = [
-  'Visual equation editor for easy math input',
-  'Support for images in questions',
-  'Real-time progress tracking',
-  'Comprehensive admin dashboard',
-  'Dark and light mode themes',
-  'Mobile-friendly responsive design',
-];
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
 
 export default function Index() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    const { data } = await supabase
+      .from('posts')
+      .select('id, title, content, created_at')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false })
+      .limit(3);
+    
+    if (data) setPosts(data);
+  };
+
+  const features = [
+    {
+      icon: BookOpen,
+      title: t('home.richMath'),
+      description: t('home.richMathDesc'),
+    },
+    {
+      icon: Trophy,
+      title: t('home.instantResults'),
+      description: t('home.instantResultsDesc'),
+    },
+    {
+      icon: Users,
+      title: t('home.multiUser'),
+      description: t('home.multiUserDesc'),
+    },
+  ];
+
+  const benefits = [
+    t('feature.visualEditor'),
+    t('feature.imageSupport'),
+    t('feature.realTimeProgress'),
+    t('feature.adminDashboard'),
+    t('feature.darkMode'),
+    t('feature.responsive'),
+  ];
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
 
   return (
     <div className="flex flex-col">
@@ -48,23 +84,22 @@ export default function Index() {
           >
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span>Modern Test Management Platform</span>
+              <span>{t('home.tagline')}</span>
             </div>
             <h1 className="mb-6 text-4xl font-bold tracking-tight md:text-6xl">
-              Create & Take Tests with{' '}
+              {t('home.title1')}{' '}
               <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Mathematical Precision
+                {t('home.title2')}
               </span>
             </h1>
             <p className="mb-8 text-lg text-muted-foreground md:text-xl">
-              A powerful platform for creating math-based tests with visual equation editing,
-              comprehensive analytics, and seamless user experience.
+              {t('home.description')}
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               {user ? (
                 <Button size="lg" asChild>
                   <Link to="/dashboard">
-                    Go to Dashboard
+                    {t('home.goToDashboard')}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>
@@ -72,12 +107,12 @@ export default function Index() {
                 <>
                   <Button size="lg" asChild>
                     <Link to="/auth?mode=signup">
-                      Get Started Free
+                      {t('home.getStartedFree')}
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
                   <Button size="lg" variant="outline" asChild>
-                    <Link to="/auth">Sign In</Link>
+                    <Link to="/auth">{t('nav.signIn')}</Link>
                   </Button>
                 </>
               )}
@@ -85,6 +120,46 @@ export default function Index() {
           </motion.div>
         </div>
       </section>
+
+      {/* Latest News/Posts Section */}
+      {posts.length > 0 && (
+        <section className="py-12 bg-muted/30">
+          <div className="container">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="flex items-center gap-2 mb-6">
+                <Newspaper className="h-6 w-6 text-primary" />
+                <h2 className="text-2xl font-bold">{t('posts.latestNews')}</h2>
+              </div>
+              <div className="grid md:grid-cols-3 gap-6">
+                {posts.map((post, index) => (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: index * 0.1 }}
+                  >
+                    <Card className="h-full">
+                      <CardHeader>
+                        <CardTitle className="text-lg">{post.title}</CardTitle>
+                        <p className="text-xs text-muted-foreground">{formatDate(post.created_at)}</p>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground line-clamp-3">{post.content}</p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
 
       {/* Features Section */}
       <section className="py-20 bg-muted/30">
@@ -96,9 +171,9 @@ export default function Index() {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold mb-4">Why Choose TestHub?</h2>
+            <h2 className="text-3xl font-bold mb-4">{t('home.whyChoose')}</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to create, manage, and take tests with support for complex mathematical notation.
+              {t('home.whyChooseDesc')}
             </p>
           </motion.div>
 
@@ -134,11 +209,10 @@ export default function Index() {
               transition={{ duration: 0.6 }}
             >
               <h2 className="text-3xl font-bold mb-6">
-                Built for Educators & Students
+                {t('home.builtFor')}
               </h2>
               <p className="text-muted-foreground mb-8">
-                Whether you're an educator creating assessments or a student preparing for exams,
-                TestHub provides all the tools you need for a seamless testing experience.
+                {t('home.builtForDesc')}
               </p>
               <ul className="space-y-4">
                 {benefits.map((benefit, index) => (
@@ -187,13 +261,13 @@ export default function Index() {
             transition={{ duration: 0.6 }}
             className="text-center text-primary-foreground"
           >
-            <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
+            <h2 className="text-3xl font-bold mb-4">{t('home.readyToStart')}</h2>
             <p className="mb-8 max-w-2xl mx-auto opacity-90">
-              Join TestHub today and experience the future of online testing with full mathematical support.
+              {t('home.joinToday')}
             </p>
             <Button size="lg" variant="secondary" asChild>
               <Link to={user ? '/dashboard' : '/auth?mode=signup'}>
-                {user ? 'Go to Dashboard' : 'Create Free Account'}
+                {user ? t('home.goToDashboard') : t('home.createFreeAccount')}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
