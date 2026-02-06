@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, Users, Trophy, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Stats {
   totalTests: number;
@@ -12,6 +14,7 @@ interface Stats {
 }
 
 export default function AdminOverview() {
+  const { t } = useLanguage();
   const [stats, setStats] = useState<Stats>({
     totalTests: 0,
     totalUsers: 0,
@@ -52,31 +55,31 @@ export default function AdminOverview() {
 
   const statCards = [
     {
-      title: 'Total Tests',
+      title: t('admin.totalTests'),
       value: stats.totalTests,
       icon: FileText,
-      description: 'Tests created',
+      description: t('admin.testsCreated'),
       color: 'text-primary',
     },
     {
-      title: 'Total Users',
+      title: t('admin.totalUsers'),
       value: stats.totalUsers,
       icon: Users,
-      description: 'Registered users',
+      description: t('admin.registeredUsers'),
       color: 'text-accent',
     },
     {
-      title: 'Test Results',
+      title: t('admin.testResults'),
       value: stats.totalResults,
       icon: Trophy,
-      description: 'Submissions received',
+      description: t('admin.submissionsReceived'),
       color: 'text-success',
     },
     {
-      title: 'Average Score',
+      title: t('dashboard.averageScore'),
       value: `${stats.averageScore.toFixed(1)}%`,
       icon: TrendingUp,
-      description: 'Across all tests',
+      description: t('dashboard.acrossAllTests'),
       color: 'text-warning',
     },
   ];
@@ -84,9 +87,9 @@ export default function AdminOverview() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Dashboard Overview</h1>
+        <h1 className="text-3xl font-bold">{t('admin.dashboardOverview')}</h1>
         <p className="text-muted-foreground">
-          Welcome to the admin panel. Here's a summary of your platform.
+          {t('admin.welcomeAdmin')}
         </p>
       </div>
 
@@ -119,75 +122,75 @@ export default function AdminOverview() {
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common administrative tasks</CardDescription>
+            <CardTitle>{t('admin.quickActions')}</CardTitle>
+            <CardDescription>{t('admin.commonTasks')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <a
-              href="/admin/tests"
+            <Link
+              to="/admin/tests/new"
               className="block p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <FileText className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">Create New Test</p>
-                  <p className="text-sm text-muted-foreground">Add a new test with questions</p>
+                  <p className="font-medium">{t('admin.createNewTest')}</p>
+                  <p className="text-sm text-muted-foreground">{t('admin.addTestQuestions')}</p>
                 </div>
               </div>
-            </a>
-            <a
-              href="/admin/results"
+            </Link>
+            <Link
+              to="/admin/results"
               className="block p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <Trophy className="h-5 w-5 text-success" />
                 <div>
-                  <p className="font-medium">View Leaderboard</p>
-                  <p className="text-sm text-muted-foreground">See top performers</p>
+                  <p className="font-medium">{t('admin.viewLeaderboard')}</p>
+                  <p className="text-sm text-muted-foreground">{t('admin.seeTopPerformers')}</p>
                 </div>
               </div>
-            </a>
-            <a
-              href="/admin/users"
+            </Link>
+            <Link
+              to="/admin/users"
               className="block p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-accent" />
                 <div>
-                  <p className="font-medium">Manage Users</p>
-                  <p className="text-sm text-muted-foreground">View and manage user accounts</p>
+                  <p className="font-medium">{t('admin.manageUsers')}</p>
+                  <p className="text-sm text-muted-foreground">{t('admin.viewManageUsers')}</p>
                 </div>
               </div>
-            </a>
+            </Link>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Platform Status</CardTitle>
-            <CardDescription>System health and information</CardDescription>
+            <CardTitle>{t('admin.platformStatus')}</CardTitle>
+            <CardDescription>{t('admin.systemHealth')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Database</span>
+                <span className="text-sm">{t('admin.database')}</span>
                 <span className="flex items-center gap-2 text-sm text-success">
                   <span className="h-2 w-2 bg-success rounded-full" />
-                  Connected
+                  {t('admin.connected')}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">Authentication</span>
+                <span className="text-sm">{t('admin.authentication')}</span>
                 <span className="flex items-center gap-2 text-sm text-success">
                   <span className="h-2 w-2 bg-success rounded-full" />
-                  Active
+                  {t('admin.active')}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">Storage</span>
+                <span className="text-sm">{t('admin.storage')}</span>
                 <span className="flex items-center gap-2 text-sm text-success">
                   <span className="h-2 w-2 bg-success rounded-full" />
-                  Available
+                  {t('admin.available')}
                 </span>
               </div>
             </div>

@@ -4,6 +4,8 @@ import { Moon, Sun, LogOut, User, LayoutDashboard, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,11 +17,14 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useState } from 'react';
 
 export function Header() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const { signOut } = useAuth();
+  
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -46,21 +51,23 @@ export function Header() {
           {user && (
             <>
               <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Dashboard
+                {t('nav.dashboard')}
               </Link>
               <Link to="/tests" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Tests
+                {t('nav.tests')}
               </Link>
               {isAdmin && (
                 <Link to="/admin" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                  Admin
+                  {t('nav.admin')}
                 </Link>
               )}
             </>
           )}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          
           <Button
             variant="ghost"
             size="icon"
@@ -98,37 +105,37 @@ export function Header() {
                 <DropdownMenuItem asChild>
                   <Link to="/dashboard" className="flex items-center">
                     <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
+                    {t('nav.dashboard')}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/profile" className="flex items-center">
                     <User className="mr-2 h-4 w-4" />
-                    Profile
+                    {t('nav.profile')}
                   </Link>
                 </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem asChild>
                     <Link to="/admin" className="flex items-center">
                       <LayoutDashboard className="mr-2 h-4 w-4" />
-                      Admin Panel
+                      {t('nav.adminPanel')}
                     </Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
+                  {t('nav.signOut')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <div className="hidden md:flex items-center gap-2">
               <Button variant="ghost" asChild>
-                <Link to="/auth">Sign in</Link>
+                <Link to="/auth">{t('nav.signIn')}</Link>
               </Button>
               <Button asChild>
-                <Link to="/auth?mode=signup">Get Started</Link>
+                <Link to="/auth?mode=signup">{t('nav.getStarted')}</Link>
               </Button>
             </div>
           )}
@@ -161,14 +168,14 @@ export function Header() {
                   className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Dashboard
+                  {t('nav.dashboard')}
                 </Link>
                 <Link
                   to="/tests"
                   className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Tests
+                  {t('nav.tests')}
                 </Link>
                 {isAdmin && (
                   <Link
@@ -176,7 +183,7 @@ export function Header() {
                     className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Admin Panel
+                    {t('nav.adminPanel')}
                   </Link>
                 )}
               </>
@@ -187,14 +194,14 @@ export function Header() {
                   className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Sign in
+                  {t('nav.signIn')}
                 </Link>
                 <Link
                   to="/auth?mode=signup"
                   className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg text-center"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Get Started
+                  {t('nav.getStarted')}
                 </Link>
               </>
             )}

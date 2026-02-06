@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
@@ -19,6 +20,7 @@ import AdminOverview from "./pages/admin/AdminOverview";
 import AdminTests from "./pages/admin/AdminTests";
 import CreateTest from "./pages/admin/CreateTest";
 import AdminResults from "./pages/admin/AdminResults";
+import ResultDetail from "./pages/admin/ResultDetail";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminSettings from "./pages/admin/AdminSettings";
 import NotFound from "./pages/NotFound";
@@ -28,10 +30,11 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
+      <LanguageProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
           <BrowserRouter>
             <Routes>
               <Route element={<Layout />}>
@@ -78,6 +81,7 @@ const App = () => (
                   <Route path="tests/new" element={<CreateTest />} />
                   <Route path="tests/:testId/edit" element={<CreateTest />} />
                   <Route path="results" element={<AdminResults />} />
+                  <Route path="results/:resultId" element={<ResultDetail />} />
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="settings" element={<AdminSettings />} />
                 </Route>
@@ -89,8 +93,9 @@ const App = () => (
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+    </LanguageProvider>
+  </ThemeProvider>
+</QueryClientProvider>
 );
 
 export default App;

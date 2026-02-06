@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Filter, Trophy, Clock, Calendar, Download } from 'lucide-react';
+import { Search, Trophy, Clock, Calendar, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface TestResult {
   id: string;
@@ -37,6 +39,8 @@ interface Test {
 }
 
 export default function AdminResults() {
+  const navigate = useNavigate();
+  const { t } = useLanguage();
   const [results, setResults] = useState<TestResult[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
@@ -275,6 +279,7 @@ export default function AdminResults() {
                       <TableHead>Score</TableHead>
                       <TableHead>Time</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -303,6 +308,16 @@ export default function AdminResults() {
                             <Calendar className="h-3 w-3" />
                             {formatDate(result.completed_at)}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/admin/results/${result.id}`)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

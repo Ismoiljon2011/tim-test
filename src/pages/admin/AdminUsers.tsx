@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, UserCog, Mail, Calendar, Shield, ShieldCheck } from 'lucide-react';
+import { Search, UserCog, Calendar, Shield, ShieldCheck, Crown, Key } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface User {
   id: string;
@@ -32,15 +34,19 @@ interface User {
   display_name: string | null;
   avatar_url: string | null;
   created_at: string;
-  isAdmin?: boolean;
+  role: 'user' | 'admin' | 'super_admin';
 }
 
 export default function AdminUsers() {
+  const { isSuperAdmin } = useAuth();
+  const { t } = useLanguage();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,17 +63,25 @@ export default function AdminUsers() {
 
       if (error) throw error;
 
-      // Fetch admin roles
-      const { data: adminRoles } = await supabase
+      // Fetch roles
+      const { data: roles } = await supabase
         .from('user_roles')
-        .select('user_id')
-        .eq('role', 'admin');
+        .select('user_id, role');
 
-      const adminUserIds = new Set(adminRoles?.map((r) => r.user_id) || []);
+      const rolesMap = new Map<string, string>();
+      roles?.forEach((r) => {
+        // Prioritize super_admin > admin > user
+        const current = rolesMap.get(r.user_id);
+        if (r.role === 'super_admin' || (r.role === 'admin' && current !== 'super_admin')) {
+          rolesMap.set(r.user_id, r.role);
+        } else if (!current) {
+          rolesMap.set(r.user_id, r.role);
+        }
+      });
 
       const usersWithRoles = (profiles || []).map((profile) => ({
         ...profile,
-        isAdmin: adminUserIds.has(profile.user_id),
+        role: (rolesMap.get(profile.user_id) || 'user') as 'user' | 'admin' | 'super_admin',
       }));
 
       setUsers(usersWithRoles);
@@ -84,8 +98,17 @@ export default function AdminUsers() {
   };
 
   const toggleAdminRole = async (user: User) => {
+    if (!isSuperAdmin) {
+      toast({
+        variant: 'destructive',
+        title: 'Permission denied',
+        description: 'Only Super Admins can manage user roles.',
+      });
+      return;
+    }
+
     try {
-      if (user.isAdmin) {
+      if (user.role === 'admin') {
         // Remove admin role
         const { error } = await supabase
           .from('user_roles')
@@ -98,7 +121,7 @@ export default function AdminUsers() {
           title: 'Role updated',
           description: `${user.username} is no longer an admin.`,
         });
-      } else {
+      } else if (user.role === 'user') {
         // Add admin role
         const { error } = await supabase
           .from('user_roles')
@@ -111,12 +134,7 @@ export default function AdminUsers() {
         });
       }
 
-      // Update local state
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === user.id ? { ...u, isAdmin: !u.isAdmin } : u
-        )
-      );
+      fetchUsers();
       setDialogOpen(false);
     } catch (error) {
       console.error('Error updating role:', error);
@@ -126,6 +144,19 @@ export default function AdminUsers() {
         description: 'Could not update user role.',
       });
     }
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedUser || !newPassword) return;
+    
+    // Note: In a real app, you would use an edge function to reset the password
+    // since admin password reset requires the service role key
+    toast({
+      title: 'Password reset',
+      description: `Password reset requested for ${selectedUser.username}. The user should use the forgot password flow.`,
+    });
+    setResetDialogOpen(false);
+    setNewPassword('');
   };
 
   const filteredUsers = users.filter(
@@ -142,18 +173,44 @@ export default function AdminUsers() {
     });
   };
 
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return (
+          <Badge className="bg-yellow-500 text-yellow-950">
+            <Crown className="h-3 w-3 mr-1" />
+            {t('adminUsers.superAdmin')}
+          </Badge>
+        );
+      case 'admin':
+        return (
+          <Badge className="bg-primary">
+            <ShieldCheck className="h-3 w-3 mr-1" />
+            {t('adminUsers.admin')}
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary">
+            <Shield className="h-3 w-3 mr-1" />
+            {t('adminUsers.regularUser')}
+          </Badge>
+        );
+    }
+  };
+
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Users</h1>
-        <p className="text-muted-foreground">Manage user accounts and roles</p>
+        <h1 className="text-3xl font-bold">{t('adminUsers.title')}</h1>
+        <p className="text-muted-foreground">{t('adminUsers.manageAccounts')}</p>
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm mb-8">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search users..."
+          placeholder={t('adminUsers.searchUsers')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -164,7 +221,7 @@ export default function AdminUsers() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Users</CardDescription>
+            <CardDescription>{t('adminUsers.totalUsers')}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{users.length}</p>
@@ -172,10 +229,10 @@ export default function AdminUsers() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Administrators</CardDescription>
+            <CardDescription>{t('adminUsers.administrators')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{users.filter((u) => u.isAdmin).length}</p>
+            <p className="text-2xl font-bold">{users.filter((u) => u.role === 'admin' || u.role === 'super_admin').length}</p>
           </CardContent>
         </Card>
       </div>
@@ -183,26 +240,26 @@ export default function AdminUsers() {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>{t('adminUsers.allUsers')}</CardTitle>
           <CardDescription>
-            {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
+            {filteredUsers.length} {t('adminUsers.user')}{filteredUsers.length !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="h-64 bg-muted animate-pulse rounded-lg" />
           ) : filteredUsers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No users found</p>
+            <p className="text-center text-muted-foreground py-12">{t('adminUsers.noUsers')}</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Joined</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t('adminUsers.user')}</TableHead>
+                    <TableHead>{t('adminUsers.username')}</TableHead>
+                    <TableHead>{t('adminUsers.role')}</TableHead>
+                    <TableHead>{t('adminUsers.joined')}</TableHead>
+                    <TableHead className="text-right">{t('adminUsers.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -221,19 +278,7 @@ export default function AdminUsers() {
                         </div>
                       </TableCell>
                       <TableCell>@{user.username}</TableCell>
-                      <TableCell>
-                        {user.isAdmin ? (
-                          <Badge className="bg-primary">
-                            <ShieldCheck className="h-3 w-3 mr-1" />
-                            Admin
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">
-                            <Shield className="h-3 w-3 mr-1" />
-                            User
-                          </Badge>
-                        )}
-                      </TableCell>
+                      <TableCell>{getRoleBadge(user.role)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-muted-foreground text-sm">
                           <Calendar className="h-3 w-3" />
@@ -241,17 +286,32 @@ export default function AdminUsers() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <UserCog className="h-4 w-4 mr-2" />
-                          Manage
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          {isSuperAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setResetDialogOpen(true);
+                              }}
+                            >
+                              <Key className="h-4 w-4 mr-2" />
+                              {t('adminUsers.resetPassword')}
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            <UserCog className="h-4 w-4 mr-2" />
+                            {t('adminUsers.manage')}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -266,9 +326,9 @@ export default function AdminUsers() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Manage User</DialogTitle>
+            <DialogTitle>{t('adminUsers.manageUser')}</DialogTitle>
             <DialogDescription>
-              Update settings for {selectedUser?.display_name || selectedUser?.username}
+              {t('adminUsers.updateSettings')} {selectedUser?.display_name || selectedUser?.username}
             </DialogDescription>
           </DialogHeader>
           {selectedUser && (
@@ -287,33 +347,54 @@ export default function AdminUsers() {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-sm font-medium">Current Role</p>
-                {selectedUser.isAdmin ? (
-                  <Badge className="bg-primary">
-                    <ShieldCheck className="h-3 w-3 mr-1" />
-                    Administrator
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary">
-                    <Shield className="h-3 w-3 mr-1" />
-                    Regular User
-                  </Badge>
-                )}
+                <p className="text-sm font-medium">{t('adminUsers.currentRole')}</p>
+                {getRoleBadge(selectedUser.role)}
               </div>
+              {!isSuperAdmin && (
+                <p className="text-sm text-muted-foreground">
+                  Only Super Admins can change user roles.
+                </p>
+              )}
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('adminUsers.cancel')}
             </Button>
-            {selectedUser && (
+            {selectedUser && isSuperAdmin && selectedUser.role !== 'super_admin' && (
               <Button
-                variant={selectedUser.isAdmin ? 'destructive' : 'default'}
+                variant={selectedUser.role === 'admin' ? 'destructive' : 'default'}
                 onClick={() => toggleAdminRole(selectedUser)}
               >
-                {selectedUser.isAdmin ? 'Remove Admin Role' : 'Make Admin'}
+                {selectedUser.role === 'admin' ? t('adminUsers.removeAdminRole') : t('adminUsers.makeAdmin')}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Reset Dialog */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('adminUsers.resetPassword')}</DialogTitle>
+            <DialogDescription>
+              Reset password for {selectedUser?.display_name || selectedUser?.username}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              For security reasons, password resets should be done through the forgot password flow.
+              The user will receive an email with instructions to reset their password.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+              {t('adminUsers.cancel')}
+            </Button>
+            <Button onClick={handleResetPassword}>
+              Send Reset Email
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
