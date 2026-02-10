@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const signInSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
@@ -35,6 +36,7 @@ export default function Auth() {
   const { user, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (user) {
@@ -121,24 +123,24 @@ export default function Auth() {
               <span className="text-2xl font-bold text-primary-foreground">T</span>
             </div>
             <CardTitle className="text-2xl font-bold">
-              {isSignUp ? 'Create an account' : 'Welcome back'}
+              {isSignUp ? t('auth.createAccount') : t('auth.welcomeBack')}
             </CardTitle>
             <CardDescription>
               {isSignUp
-                ? 'Choose a username to get started'
-                : 'Sign in with your username'}
+                ? t('auth.chooseUsername')
+                : t('auth.signInWith')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isSignUp ? (
               <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-username">Username</Label>
+                  <Label htmlFor="signup-username">{t('auth.username')}</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-username"
-                      placeholder="johndoe"
+                    placeholder="username"
                       className="pl-10"
                       {...signUpForm.register('username')}
                     />
@@ -148,7 +150,7 @@ export default function Auth() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
+                  <Label htmlFor="signup-password">{t('auth.password')}</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -168,7 +170,7 @@ export default function Auth() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Create Account
+                      {t('auth.createAccountBtn')}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -177,12 +179,12 @@ export default function Auth() {
             ) : (
               <form onSubmit={signInForm.handleSubmit(handleSignIn)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signin-username">Username</Label>
+                  <Label htmlFor="signin-username">{t('auth.username')}</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signin-username"
-                      placeholder="johndoe"
+                    placeholder="username"
                       className="pl-10"
                       {...signInForm.register('username')}
                     />
@@ -192,7 +194,7 @@ export default function Auth() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
+                  <Label htmlFor="signin-password">{t('auth.password')}</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -212,7 +214,7 @@ export default function Auth() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Sign In
+                      {t('auth.signInBtn')}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -223,24 +225,24 @@ export default function Auth() {
             <div className="mt-6 text-center text-sm">
               {isSignUp ? (
                 <p className="text-muted-foreground">
-                  Already have an account?{' '}
+                  {t('auth.alreadyHaveAccount')}{' '}
                   <button
                     type="button"
                     onClick={() => setIsSignUp(false)}
                     className="text-primary font-medium hover:underline"
                   >
-                    Sign in
+                    {t('nav.signIn')}
                   </button>
                 </p>
               ) : (
                 <p className="text-muted-foreground">
-                  Don't have an account?{' '}
+                  {t('auth.dontHaveAccount')}{' '}
                   <button
                     type="button"
                     onClick={() => setIsSignUp(true)}
                     className="text-primary font-medium hover:underline"
                   >
-                    Sign up
+                    {t('auth.signUp')}
                   </button>
                 </p>
               )}

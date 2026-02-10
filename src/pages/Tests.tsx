@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Test {
   id: string;
@@ -21,6 +22,7 @@ interface Test {
 
 export default function Tests() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [tests, setTests] = useState<Test[]>([]);
   const [assignedTests, setAssignedTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export default function Tests() {
             {isAssigned && (
               <Badge variant="secondary" className="flex items-center gap-1">
                 <Lock className="h-3 w-3" />
-                Assigned
+                {t('tests.assigned')}
               </Badge>
             )}
           </div>
@@ -124,18 +126,18 @@ export default function Tests() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
             <div className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              {test.question_count || 0} questions
+              {test.question_count || 0} {t('tests.questions')}
             </div>
             {test.time_limit_minutes && (
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                {test.time_limit_minutes} min
+                {test.time_limit_minutes} {t('tests.minutes')}
               </div>
             )}
           </div>
           <Button asChild className="w-full">
             <Link to={`/tests/${test.id}`}>
-              Start Test
+              {t('tests.startTest')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
@@ -152,9 +154,9 @@ export default function Tests() {
         transition={{ duration: 0.5 }}
       >
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Available Tests</h1>
+          <h1 className="text-3xl font-bold mb-2">{t('tests.availableTests')}</h1>
           <p className="text-muted-foreground">
-            Browse and take tests to improve your skills
+            {t('tests.browseTests')}
           </p>
         </div>
 
@@ -162,7 +164,7 @@ export default function Tests() {
         <div className="relative mb-8 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search tests..."
+            placeholder={t('tests.searchTests')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -174,7 +176,7 @@ export default function Tests() {
           <div className="mb-12">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <Lock className="h-5 w-5" />
-              Assigned to You
+              {t('tests.assignedToYou')}
             </h2>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredAssignedTests.map((test) => (
@@ -186,7 +188,7 @@ export default function Tests() {
 
         {/* Public Tests */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Public Tests</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('tests.publicTests')}</h2>
           {loading ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -202,8 +204,8 @@ export default function Tests() {
           ) : (
             <Card className="py-12">
               <CardContent className="text-center text-muted-foreground">
-                <p className="text-lg">No tests found</p>
-                <p className="text-sm">Try adjusting your search query</p>
+                <p className="text-lg">{t('tests.noTests')}</p>
+                <p className="text-sm">{t('tests.adjustSearch')}</p>
               </CardContent>
             </Card>
           )}

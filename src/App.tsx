@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,23 +10,29 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
-// Pages
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Tests from "./pages/Tests";
-import TakeTest from "./pages/TakeTest";
-import Admin from "./pages/Admin";
-import AdminOverview from "./pages/admin/AdminOverview";
-import AdminTests from "./pages/admin/AdminTests";
-import CreateTest from "./pages/admin/CreateTest";
-import AdminResults from "./pages/admin/AdminResults";
-import ResultDetail from "./pages/admin/ResultDetail";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminSettings from "./pages/admin/AdminSettings";
-import NotFound from "./pages/NotFound";
+// Lazy-loaded pages for better performance
+const Index = lazy(() => import("./pages/Index"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Tests = lazy(() => import("./pages/Tests"));
+const TakeTest = lazy(() => import("./pages/TakeTest"));
+const Admin = lazy(() => import("./pages/Admin"));
+const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
+const AdminTests = lazy(() => import("./pages/admin/AdminTests"));
+const CreateTest = lazy(() => import("./pages/admin/CreateTest"));
+const AdminResults = lazy(() => import("./pages/admin/AdminResults"));
+const ResultDetail = lazy(() => import("./pages/admin/ResultDetail"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -36,6 +43,7 @@ const App = () => (
             <Toaster />
             <Sonner />
           <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<Index />} />
@@ -90,6 +98,7 @@ const App = () => (
               {/* Catch-all route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
