@@ -9,24 +9,27 @@ interface MathRendererProps {
 
 export function MathRenderer({ latex, displayMode = false, className = '' }: MathRendererProps) {
   const containerRef = useRef<HTMLSpanElement>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (containerRef.current && latex) {
-      try {
-        katex.render(latex, containerRef.current, {
-          displayMode,
-          throwOnError: false,
-          errorColor: '#cc0000',
-          trust: true,
-          strict: false,
-        });
-        setError(null);
-      } catch (err) {
-        setError('Invalid math expression');
-        if (containerRef.current) {
+      // Check if the text contains any LaTeX commands or math notation
+      const hasLatex = /[\\{}^_]|\\[a-zA-Z]+/.test(latex);
+      
+      if (hasLatex) {
+        try {
+          katex.render(latex, containerRef.current, {
+            displayMode,
+            throwOnError: false,
+            errorColor: '#cc0000',
+            trust: true,
+            strict: false,
+          });
+        } catch {
           containerRef.current.textContent = latex;
         }
+      } else {
+        // Plain text - render as-is without KaTeX
+        containerRef.current.textContent = latex;
       }
     }
   }, [latex, displayMode]);
@@ -37,7 +40,7 @@ export function MathRenderer({ latex, displayMode = false, className = '' }: Mat
     <span
       ref={containerRef}
       className={`math-renderer ${className}`}
-      aria-label={`Math expression: ${latex}`}
+      aria-label={latex}
     />
   );
 }

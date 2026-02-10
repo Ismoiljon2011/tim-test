@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, Trash2, GripVertical, Image as ImageIcon, Upload } from 'lucide-react';
@@ -216,6 +216,24 @@ export default function CreateTest() {
 
   const activeQuestion = questions[activeQuestionIndex];
 
+  // Global paste handler for clipboard images
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) handleImageUpload(activeQuestionIndex, file);
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [activeQuestionIndex]);
+
   return (
     <div className="pb-8">
       <div className="flex items-center gap-4 mb-8">
@@ -400,7 +418,30 @@ export default function CreateTest() {
                       </Button>
                     </div>
                   ) : (
-                    <label className="flex items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                    <label
+                      className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onPaste={(e) => {
+                        const items = e.clipboardData?.items;
+                        if (items) {
+                          for (const item of Array.from(items)) {
+                            if (item.type.startsWith('image/')) {
+                              const file = item.getAsFile();
+                              if (file) handleImageUpload(activeQuestionIndex, file);
+                              break;
+                            }
+                          }
+                        }
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file && file.type.startsWith('image/')) {
+                          handleImageUpload(activeQuestionIndex, file);
+                        }
+                      }}
+                      tabIndex={0}
+                    >
                       <input
                         type="file"
                         accept="image/*"
@@ -411,7 +452,7 @@ export default function CreateTest() {
                         }}
                       />
                       <Upload className="h-6 w-6 text-muted-foreground" />
-                      <span className="text-muted-foreground">Click to upload an image</span>
+                      <span className="text-muted-foreground">Click to upload, drag & drop, or paste from clipboard</span>
                     </label>
                   )}
                 </div>
