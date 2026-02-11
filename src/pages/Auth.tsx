@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Lock, User, ArrowRight } from 'lucide-react';
+import { Loader2, Lock, User, ArrowRight, Phone, UserPlus, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,13 +20,17 @@ const signInSchema = z.object({
 
 const signUpSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
+  phone: z.string().min(1, 'Phone or email is required').max(50, 'Too long'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(6, 'Please confirm your password'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
 });
 
 type SignInFormData = z.infer<typeof signInSchema>;
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
-// Convert username to internal email format for Supabase auth
 const usernameToEmail = (username: string) => `${username.toLowerCase()}@testplatform.internal`;
 
 export default function Auth() {
@@ -46,18 +50,12 @@ export default function Auth() {
 
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
-    defaultValues: {
-      username: '',
-      password: '',
-    },
+    defaultValues: { username: '', password: '' },
   });
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: {
-      username: '',
-      password: '',
-    },
+    defaultValues: { username: '', phone: '', password: '', confirmPassword: '' },
   });
 
   const handleSignIn = async (data: SignInFormData) => {
@@ -69,16 +67,13 @@ export default function Auth() {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Sign in failed',
+        title: t('auth.signInFailed'),
         description: error.message === 'Invalid login credentials'
-          ? 'Invalid username or password. Please try again.'
+          ? t('auth.invalidCredentials')
           : error.message,
       });
     } else {
-      toast({
-        title: 'Welcome back!',
-        description: 'You have successfully signed in.',
-      });
+      toast({ title: t('auth.welcomeBack'), description: t('auth.signInSuccess') });
       navigate('/dashboard');
     }
   };
@@ -86,24 +81,17 @@ export default function Auth() {
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
     const email = usernameToEmail(data.username);
-    const { error } = await signUp(email, data.password, data.username);
+    const { error } = await signUp(email, data.password, data.username, data.phone);
     setIsLoading(false);
 
     if (error) {
       let message = error.message;
       if (message.includes('already registered')) {
-        message = 'This username is already taken. Please choose another.';
+        message = t('auth.usernameTaken');
       }
-      toast({
-        variant: 'destructive',
-        title: 'Sign up failed',
-        description: message,
-      });
+      toast({ variant: 'destructive', title: t('auth.signUpFailed'), description: message });
     } else {
-      toast({
-        title: 'Account created!',
-        description: 'You can now sign in with your username.',
-      });
+      toast({ title: t('auth.accountCreated'), description: t('auth.canSignIn') });
       setIsSignUp(false);
       signUpForm.reset();
     }
@@ -117,22 +105,21 @@ export default function Auth() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <Card className="border-0 shadow-2xl">
-          <CardHeader className="space-y-1 text-center pb-8">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-              <span className="text-2xl font-bold text-primary-foreground">T</span>
-            </div>
-            <CardTitle className="text-2xl font-bold">
-              {isSignUp ? t('auth.createAccount') : t('auth.welcomeBack')}
-            </CardTitle>
-            <CardDescription>
-              {isSignUp
-                ? t('auth.chooseUsername')
-                : t('auth.signInWith')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isSignUp ? (
+        {isSignUp ? (
+          /* ========== SIGN UP CARD ========== */
+          <Card className="border-2 border-accent/30 shadow-2xl bg-gradient-to-b from-accent/5 to-background">
+            <CardHeader className="space-y-1 text-center pb-6">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                <UserPlus className="h-7 w-7" />
+              </div>
+              <CardTitle className="text-2xl font-bold">
+                {t('auth.createAccount')}
+              </CardTitle>
+              <CardDescription>
+                {t('auth.chooseUsername')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-username">{t('auth.username')}</Label>
@@ -140,7 +127,7 @@ export default function Auth() {
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-username"
-                    placeholder="username"
+                      placeholder="username"
                       className="pl-10"
                       {...signUpForm.register('username')}
                     />
@@ -148,6 +135,22 @@ export default function Auth() {
                   {signUpForm.formState.errors.username && (
                     <p className="text-sm text-destructive">{signUpForm.formState.errors.username.message}</p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-phone">{t('auth.phoneOrEmail')}</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-phone"
+                      placeholder="+998 XX XXX XX XX"
+                      className="pl-10"
+                      {...signUpForm.register('phone')}
+                    />
+                  </div>
+                  {signUpForm.formState.errors.phone && (
+                    <p className="text-sm text-destructive">{signUpForm.formState.errors.phone.message}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">{t('auth.phoneHint')}</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">{t('auth.password')}</Label>
@@ -165,7 +168,23 @@ export default function Auth() {
                     <p className="text-sm text-destructive">{signUpForm.formState.errors.password.message}</p>
                   )}
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm">{t('auth.confirmPassword')}</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-confirm"
+                      type="password"
+                      placeholder="••••••••"
+                      className="pl-10"
+                      {...signUpForm.register('confirmPassword')}
+                    />
+                  </div>
+                  {signUpForm.formState.errors.confirmPassword && (
+                    <p className="text-sm text-destructive">{signUpForm.formState.errors.confirmPassword.message}</p>
+                  )}
+                </div>
+                <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isLoading}>
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
@@ -176,7 +195,36 @@ export default function Auth() {
                   )}
                 </Button>
               </form>
-            ) : (
+
+              <div className="mt-6 text-center text-sm">
+                <p className="text-muted-foreground">
+                  {t('auth.alreadyHaveAccount')}{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsSignUp(false)}
+                    className="text-primary font-medium hover:underline"
+                  >
+                    {t('nav.signIn')}
+                  </button>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          /* ========== SIGN IN CARD ========== */
+          <Card className="border-0 shadow-2xl">
+            <CardHeader className="space-y-1 text-center pb-8">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
+                <LogIn className="h-7 w-7 text-primary-foreground" />
+              </div>
+              <CardTitle className="text-2xl font-bold">
+                {t('auth.welcomeBack')}
+              </CardTitle>
+              <CardDescription>
+                {t('auth.signInWith')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <form onSubmit={signInForm.handleSubmit(handleSignIn)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-username">{t('auth.username')}</Label>
@@ -184,7 +232,7 @@ export default function Auth() {
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signin-username"
-                    placeholder="username"
+                      placeholder="username"
                       className="pl-10"
                       {...signInForm.register('username')}
                     />
@@ -220,35 +268,22 @@ export default function Auth() {
                   )}
                 </Button>
               </form>
-            )}
 
-            <div className="mt-6 text-center text-sm">
-              {isSignUp ? (
-                <p className="text-muted-foreground">
-                  {t('auth.alreadyHaveAccount')}{' '}
-                  <button
-                    type="button"
-                    onClick={() => setIsSignUp(false)}
-                    className="text-primary font-medium hover:underline"
-                  >
-                    {t('nav.signIn')}
-                  </button>
-                </p>
-              ) : (
+              <div className="mt-6 text-center text-sm">
                 <p className="text-muted-foreground">
                   {t('auth.dontHaveAccount')}{' '}
                   <button
                     type="button"
                     onClick={() => setIsSignUp(true)}
-                    className="text-primary font-medium hover:underline"
+                    className="text-accent font-medium hover:underline"
                   >
                     {t('auth.signUp')}
                   </button>
                 </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </motion.div>
     </div>
   );
