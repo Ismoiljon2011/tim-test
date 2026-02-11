@@ -108,7 +108,6 @@ export default function TakeTest() {
 
       if (questionsError) throw questionsError;
       
-      // Parse options from JSON
       const parsedQuestions = questionsData.map(q => ({
         ...q,
         options: q.options as string[] | null
@@ -117,11 +116,7 @@ export default function TakeTest() {
       setQuestions(parsedQuestions);
     } catch (error) {
       console.error('Error fetching test:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error loading test',
-        description: 'Could not load the test. Please try again.',
-      });
+      toast({ variant: 'destructive', title: 'Error loading test', description: 'Could not load the test. Please try again.' });
       navigate('/tests');
     } finally {
       setLoading(false);
@@ -139,7 +134,6 @@ export default function TakeTest() {
     setShowSubmitDialog(false);
 
     try {
-      // Calculate score
       let score = 0;
       let maxScore = 0;
 
@@ -155,7 +149,6 @@ export default function TakeTest() {
 
       const timeTaken = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
 
-      // Save result
       const { error } = await supabase
         .from('test_results')
         .insert({
@@ -173,17 +166,10 @@ export default function TakeTest() {
       setResult({ score, maxScore });
       setTestCompleted(true);
       
-      toast({
-        title: 'Test submitted!',
-        description: 'Your answers have been recorded.',
-      });
+      toast({ title: 'Test submitted!', description: 'Your answers have been recorded.' });
     } catch (error) {
       console.error('Error submitting test:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Submission failed',
-        description: 'Could not submit your answers. Please try again.',
-      });
+      toast({ variant: 'destructive', title: 'Submission failed', description: 'Could not submit your answers. Please try again.' });
     } finally {
       setSubmitting(false);
     }
@@ -196,7 +182,7 @@ export default function TakeTest() {
   };
 
   const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
   const answeredCount = Object.keys(answers).length;
 
   if (loading) {
@@ -300,23 +286,25 @@ export default function TakeTest() {
           >
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle className="text-lg flex items-start gap-4">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
-                    {currentQuestionIndex + 1}
-                  </span>
-                  <div className="flex-1">
-                    {currentQuestion?.question_text && (
-                      <div className="mb-4">
-                        <MathRenderer latex={currentQuestion.question_text} displayMode />
-                      </div>
-                    )}
-                    {currentQuestion?.question_image_url && (
-                      <img
-                        src={currentQuestion.question_image_url}
-                        alt="Question"
-                        className="max-w-full rounded-lg mt-4"
-                      />
-                    )}
+                <CardTitle className="text-lg">
+                  <div className="flex items-start gap-4">
+                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
+                      {currentQuestionIndex + 1}
+                    </span>
+                    <div className="flex-1">
+                      {currentQuestion?.question_text && (
+                        <div className="mb-4">
+                          <MathRenderer latex={currentQuestion.question_text} displayMode />
+                        </div>
+                      )}
+                      {currentQuestion?.question_image_url && (
+                        <img
+                          src={currentQuestion.question_image_url}
+                          alt="Question"
+                          className="max-w-full rounded-lg mt-4"
+                        />
+                      )}
+                    </div>
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -328,15 +316,20 @@ export default function TakeTest() {
                     className="space-y-3"
                   >
                     {currentQuestion.options.map((option, index) => (
-                      <div
+                      <label
                         key={index}
-                        className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                        htmlFor={`option-${index}`}
+                        className={`flex items-center space-x-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                          answers[currentQuestion.id] === option
+                            ? 'bg-primary/10 border-primary'
+                            : 'hover:bg-muted/50'
+                        }`}
                       >
                         <RadioGroupItem value={option} id={`option-${index}`} />
-                        <Label htmlFor={`option-${index}`} className="flex-1 cursor-pointer">
+                        <span className="flex-1">
                           <MathRenderer latex={option} />
-                        </Label>
-                      </div>
+                        </span>
+                      </label>
                     ))}
                   </RadioGroup>
                 ) : (
@@ -363,7 +356,7 @@ export default function TakeTest() {
             Previous
           </Button>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-center">
             {questions.map((_, index) => (
               <button
                 key={index}

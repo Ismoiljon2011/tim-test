@@ -12,7 +12,7 @@ interface Translations {
 
 export const translations: Translations = {
   // Navigation
-  'nav.dashboard': { uz: 'Boshqaruv paneli', en: 'Dashboard', ru: 'Панель' },
+  'nav.dashboard': { uz: 'Dashboard', en: 'Dashboard', ru: 'Панель' },
   'nav.tests': { uz: 'Testlar', en: 'Tests', ru: 'Тесты' },
   'nav.admin': { uz: 'Admin', en: 'Admin', ru: 'Админ' },
   'nav.signIn': { uz: 'Kirish', en: 'Sign in', ru: 'Войти' },
@@ -28,11 +28,21 @@ export const translations: Translations = {
   'auth.signInWith': { uz: 'Foydalanuvchi nomi bilan kiring', en: 'Sign in with your username', ru: 'Войдите с именем пользователя' },
   'auth.username': { uz: 'Foydalanuvchi nomi', en: 'Username', ru: 'Имя пользователя' },
   'auth.password': { uz: 'Parol', en: 'Password', ru: 'Пароль' },
+  'auth.confirmPassword': { uz: 'Parolni tasdiqlang', en: 'Confirm Password', ru: 'Подтвердите пароль' },
+  'auth.phoneOrEmail': { uz: 'Telefon raqami yoki email', en: 'Phone number or email', ru: 'Номер телефона или email' },
+  'auth.phoneHint': { uz: 'O\'zbekiston raqami: +998 XX XXX XX XX. Email ham qabul qilinadi.', en: 'Uzbekistan format: +998 XX XXX XX XX. Email is also accepted.', ru: 'Формат Узбекистана: +998 XX XXX XX XX. Email тоже принимается.' },
   'auth.createAccountBtn': { uz: 'Hisob yaratish', en: 'Create Account', ru: 'Создать аккаунт' },
   'auth.signInBtn': { uz: 'Kirish', en: 'Sign In', ru: 'Войти' },
   'auth.alreadyHaveAccount': { uz: 'Hisobingiz bormi?', en: 'Already have an account?', ru: 'Уже есть аккаунт?' },
   'auth.dontHaveAccount': { uz: 'Hisobingiz yo\'qmi?', en: "Don't have an account?", ru: 'Нет аккаунта?' },
   'auth.signUp': { uz: 'Ro\'yxatdan o\'tish', en: 'Sign up', ru: 'Регистрация' },
+  'auth.signInFailed': { uz: 'Kirish muvaffaqiyatsiz', en: 'Sign in failed', ru: 'Ошибка входа' },
+  'auth.invalidCredentials': { uz: 'Noto\'g\'ri foydalanuvchi nomi yoki parol.', en: 'Invalid username or password. Please try again.', ru: 'Неверное имя пользователя или пароль.' },
+  'auth.signInSuccess': { uz: 'Muvaffaqiyatli kirdingiz.', en: 'You have successfully signed in.', ru: 'Вы успешно вошли.' },
+  'auth.signUpFailed': { uz: 'Ro\'yxatdan o\'tish muvaffaqiyatsiz', en: 'Sign up failed', ru: 'Ошибка регистрации' },
+  'auth.usernameTaken': { uz: 'Bu foydalanuvchi nomi band. Boshqasini tanlang.', en: 'This username is already taken. Please choose another.', ru: 'Это имя пользователя уже занято.' },
+  'auth.accountCreated': { uz: 'Hisob yaratildi!', en: 'Account created!', ru: 'Аккаунт создан!' },
+  'auth.canSignIn': { uz: 'Endi foydalanuvchi nomingiz bilan kirishingiz mumkin.', en: 'You can now sign in with your username.', ru: 'Теперь вы можете войти с именем пользователя.' },
   
   // Home page
   'home.tagline': { uz: 'Zamonaviy test platformasi', en: 'Modern Test Management Platform', ru: 'Современная платформа тестирования' },
@@ -40,7 +50,7 @@ export const translations: Translations = {
   'home.title2': { uz: 'Matematik aniqlik bilan', en: 'Mathematical Precision', ru: 'Математической точностью' },
   'home.description': { uz: 'Vizual tenglamalar muharriri, keng qamrovli tahlil va foydalanuvchi tajribasiga ega matematik testlar yaratish uchun kuchli platforma.', en: 'A powerful platform for creating math-based tests with visual equation editing, comprehensive analytics, and seamless user experience.', ru: 'Мощная платформа для создания математических тестов с визуальным редактором уравнений, комплексной аналитикой и удобным интерфейсом.' },
   'home.getStartedFree': { uz: 'Bepul boshlash', en: 'Get Started Free', ru: 'Начать бесплатно' },
-  'home.goToDashboard': { uz: 'Boshqaruv paneliga o\'tish', en: 'Go to Dashboard', ru: 'Перейти в панель' },
+  'home.goToDashboard': { uz: 'Dashboard\'ga o\'tish', en: 'Go to Dashboard', ru: 'Перейти в Dashboard' },
   'home.whyChoose': { uz: 'Nima uchun TestHub?', en: 'Why Choose TestHub?', ru: 'Почему TestHub?' },
   'home.whyChooseDesc': { uz: 'Murakkab matematik yozuv qo\'llab-quvvatlash bilan testlarni yaratish, boshqarish va o\'tkazish uchun zarur bo\'lgan hamma narsa.', en: 'Everything you need to create, manage, and take tests with support for complex mathematical notation.', ru: 'Все необходимое для создания, управления и прохождения тестов с поддержкой сложных математических обозначений.' },
   'home.richMath': { uz: 'Boy matematik qo\'llab-quvvatlash', en: 'Rich Math Support', ru: 'Поддержка математики' },
@@ -49,8 +59,8 @@ export const translations: Translations = {
   'home.instantResultsDesc': { uz: 'Testni tugatgandan so\'ng batafsil tahlil bilan ballingizni darhol oling.', en: 'Get your score immediately after completing a test with detailed analytics.', ru: 'Получайте результат сразу после завершения теста с подробной аналитикой.' },
   'home.multiUser': { uz: 'Ko\'p foydalanuvchi qo\'llab-quvvatlash', en: 'Multi-User Support', ru: 'Многопользователь' },
   'home.multiUserDesc': { uz: 'Testlarni ma\'lum foydalanuvchilarga tayinlang yoki ularni hamma uchun ochiq qiling.', en: 'Assign tests to specific users or make them public for everyone.', ru: 'Назначайте тесты конкретным пользователям или делайте их публичными.' },
-  'home.builtFor': { uz: 'O\'qituvchilar va talabalar uchun yaratilgan', en: 'Built for Educators & Students', ru: 'Создано для учителей и студентов' },
-  'home.builtForDesc': { uz: 'Siz baholashlar yaratayotgan o\'qituvchi bo\'lasizmi yoki imtihonlarga tayyorlanayotgan talaba bo\'lasizmi, TestHub silliq test tajribasi uchun barcha vositalarni taqdim etadi.', en: "Whether you're an educator creating assessments or a student preparing for exams, TestHub provides all the tools you need for a seamless testing experience.", ru: 'Являетесь ли вы преподавателем, создающим оценки, или студентом, готовящимся к экзаменам, TestHub предоставляет все инструменты для бесперебойного тестирования.' },
+  'home.builtFor': { uz: 'O\'qituvchilar va o\'quvchilar uchun yaratilgan', en: 'Built for Educators & Students', ru: 'Создано для учителей и учеников' },
+  'home.builtForDesc': { uz: 'Siz baholashlar yaratayotgan o\'qituvchi bo\'lasizmi yoki imtihonlarga tayyorlanayotgan o\'quvchi bo\'lasizmi, TestHub silliq test tajribasi uchun barcha vositalarni taqdim etadi.', en: "Whether you're an educator creating assessments or a student preparing for exams, TestHub provides all the tools you need for a seamless testing experience.", ru: 'Являетесь ли вы преподавателем, создающим оценки, или учеником, готовящимся к экзаменам, TestHub предоставляет все инструменты для бесперебойного тестирования.' },
   'home.readyToStart': { uz: 'Boshlashga tayyormisiz?', en: 'Ready to Get Started?', ru: 'Готовы начать?' },
   'home.joinToday': { uz: 'Bugun TestHubga qo\'shiling va to\'liq matematik qo\'llab-quvvatlash bilan onlayn testlarning kelajagini his qiling.', en: 'Join TestHub today and experience the future of online testing with full mathematical support.', ru: 'Присоединяйтесь к TestHub сегодня и испытайте будущее онлайн-тестирования с полной математической поддержкой.' },
   'home.createFreeAccount': { uz: 'Bepul hisob yaratish', en: 'Create Free Account', ru: 'Создать бесплатный аккаунт' },
@@ -92,11 +102,14 @@ export const translations: Translations = {
   'tests.assignedToYou': { uz: 'Sizga tayinlangan', en: 'Assigned to You', ru: 'Назначено вам' },
   'tests.publicTests': { uz: 'Umumiy testlar', en: 'Public Tests', ru: 'Публичные тесты' },
   'tests.noTests': { uz: 'Testlar topilmadi', en: 'No tests found', ru: 'Тесты не найдены' },
+  'tests.noOlympiads': { uz: 'Olimpiadalar topilmadi', en: 'No olympiads found', ru: 'Олимпиады не найдены' },
   'tests.adjustSearch': { uz: 'Qidiruv so\'rovingizni o\'zgartirib ko\'ring', en: 'Try adjusting your search query', ru: 'Попробуйте изменить поисковый запрос' },
   'tests.questions': { uz: 'savollar', en: 'questions', ru: 'вопросов' },
   'tests.minutes': { uz: 'daqiqa', en: 'min', ru: 'мин' },
   'tests.startTest': { uz: 'Testni boshlash', en: 'Start Test', ru: 'Начать тест' },
   'tests.assigned': { uz: 'Tayinlangan', en: 'Assigned', ru: 'Назначен' },
+  'tests.practice': { uz: 'Mashqlar', en: 'Practice', ru: 'Практика' },
+  'tests.olympiad': { uz: 'Olimpiadalar', en: 'Olympiads', ru: 'Олимпиады' },
   
   // Take Test
   'takeTest.question': { uz: 'Savol', en: 'Question', ru: 'Вопрос' },
@@ -122,7 +135,7 @@ export const translations: Translations = {
   'admin.results': { uz: 'Natijalar', en: 'Results', ru: 'Результаты' },
   'admin.settings': { uz: 'Sozlamalar', en: 'Settings', ru: 'Настройки' },
   'admin.backToApp': { uz: 'Ilovaga qaytish', en: 'Back to App', ru: 'Назад в приложение' },
-  'admin.dashboardOverview': { uz: 'Boshqaruv paneli ko\'rinishi', en: 'Dashboard Overview', ru: 'Обзор панели' },
+  'admin.dashboardOverview': { uz: 'Dashboard ko\'rinishi', en: 'Dashboard Overview', ru: 'Обзор Dashboard' },
   'admin.welcomeAdmin': { uz: 'Admin paneliga xush kelibsiz. Platformangiz haqida qisqacha ma\'lumot.', en: "Welcome to the admin panel. Here's a summary of your platform.", ru: 'Добро пожаловать в панель администратора. Вот сводка вашей платформы.' },
   'admin.totalTests': { uz: 'Jami testlar', en: 'Total Tests', ru: 'Всего тестов' },
   'admin.testsCreated': { uz: 'Yaratilgan testlar', en: 'Tests created', ru: 'Создано тестов' },
@@ -204,7 +217,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (stored === 'uz' || stored === 'en' || stored === 'ru') {
       return stored;
     }
-    return 'uz'; // Default to Uzbek
+    return 'uz';
   });
 
   useEffect(() => {

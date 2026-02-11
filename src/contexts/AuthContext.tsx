@@ -12,7 +12,7 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   userRole: UserRole;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, username: string, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -48,14 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Defer role check with setTimeout
         if (session?.user) {
           setTimeout(() => {
             checkAdminRole(session.user.id);
@@ -66,7 +64,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -81,14 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error as Error | null };
   };
 
-  const signUp = async (email: string, password: string, username: string) => {
+  const signUp = async (email: string, password: string, username: string, phone?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { data, error } = await supabase.auth.signUp({
@@ -96,9 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: {
         emailRedirectTo: redirectUrl,
-        data: {
-          username,
-        }
+        data: { username }
       }
     });
 
@@ -106,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error as Error };
     }
 
-    // Create profile after signup
     if (data.user) {
       const { error: profileError } = await supabase
         .from('profiles')
@@ -114,19 +105,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user_id: data.user.id,
           username,
           display_name: username,
+          phone: phone || null,
         });
       
       if (profileError) {
         console.error('Profile creation error:', profileError);
       }
 
-      // Assign default user role
       const { error: roleError } = await supabase
         .from('user_roles')
-        .insert({
-          user_id: data.user.id,
-          role: 'user',
-        });
+        .insert({ user_id: data.user.id, role: 'user' });
       
       if (roleError) {
         console.error('Role assignment error:', roleError);

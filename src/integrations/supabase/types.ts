@@ -53,6 +53,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          phone: string | null
           updated_at: string
           user_id: string
           username: string
@@ -62,6 +63,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id: string
           username: string
@@ -71,6 +73,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id?: string
           username?: string
@@ -205,6 +208,7 @@ export type Database = {
           id: string
           is_public: boolean
           show_results: boolean
+          test_type: string
           time_limit_minutes: number | null
           title: string
           updated_at: string
@@ -216,6 +220,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           show_results?: boolean
+          test_type?: string
           time_limit_minutes?: number | null
           title: string
           updated_at?: string
@@ -227,6 +232,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           show_results?: boolean
+          test_type?: string
           time_limit_minutes?: number | null
           title?: string
           updated_at?: string

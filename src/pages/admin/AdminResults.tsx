@@ -24,6 +24,7 @@ interface TestResult {
   max_score: number;
   completed_at: string;
   time_taken_seconds: number;
+  user_id: string;
   user: {
     username: string;
     display_name: string | null;
@@ -54,17 +55,13 @@ export default function AdminResults() {
 
   const fetchData = async () => {
     try {
-      // Fetch all tests
       const { data: testsData } = await supabase
         .from('tests')
         .select('id, title')
         .order('title');
 
-      if (testsData) {
-        setTests(testsData);
-      }
+      if (testsData) setTests(testsData);
 
-      // Fetch all results with user and test info
       const { data: resultsData } = await supabase
         .from('test_results')
         .select(`
@@ -79,7 +76,6 @@ export default function AdminResults() {
         .order('completed_at', { ascending: false });
 
       if (resultsData) {
-        // Fetch profiles separately since there's no direct FK
         const userIds = [...new Set(resultsData.map(r => r.user_id))];
         const { data: profilesData } = await supabase
           .from('profiles')
@@ -129,15 +125,33 @@ export default function AdminResults() {
     return matchesSearch && matchesTest;
   });
 
-  // Leaderboard: top N performers sorted by score, then by time
-  const leaderboard = [...filteredResults]
-    .sort((a, b) => {
-      const scoreA = a.score / a.max_score;
-      const scoreB = b.score / b.max_score;
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return a.time_taken_seconds - b.time_taken_seconds;
-    })
-    .slice(0, leaderboardCount);
+  // Leaderboard: deduplicate by user - only keep highest score per user
+  const leaderboard = (() => {
+    const bestByUser = new Map<string, TestResult>();
+    
+    filteredResults.forEach((r) => {
+      const key = r.user_id;
+      const existing = bestByUser.get(key);
+      if (!existing) {
+        bestByUser.set(key, r);
+      } else {
+        const existingPct = existing.score / existing.max_score;
+        const currentPct = r.score / r.max_score;
+        if (currentPct > existingPct || (currentPct === existingPct && r.time_taken_seconds < existing.time_taken_seconds)) {
+          bestByUser.set(key, r);
+        }
+      }
+    });
+
+    return [...bestByUser.values()]
+      .sort((a, b) => {
+        const scoreA = a.score / a.max_score;
+        const scoreB = b.score / b.max_score;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return a.time_taken_seconds - b.time_taken_seconds;
+      })
+      .slice(0, leaderboardCount);
+  })();
 
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
@@ -196,7 +210,7 @@ export default function AdminResults() {
                   <Trophy className="h-5 w-5 text-warning" />
                   Leaderboard
                 </CardTitle>
-                <CardDescription>Top performers</CardDescription>
+                <CardDescription>Top performers (best score per user)</CardDescription>
               </div>
               <Select
                 value={leaderboardCount.toString()}

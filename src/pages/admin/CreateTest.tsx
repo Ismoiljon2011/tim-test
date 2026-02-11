@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Trash2, GripVertical, Image as ImageIcon, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, GripVertical, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,18 +35,74 @@ const createEmptyQuestion = (): QuestionForm => ({
 });
 
 export default function CreateTest() {
+  const { testId } = useParams<{ testId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isEditing = !!testId;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
+  const [testType, setTestType] = useState<'practice' | 'olympiad'>('practice');
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | null>(null);
   const [showResults, setShowResults] = useState(true);
   const [questions, setQuestions] = useState<QuestionForm[]>([createEmptyQuestion()]);
   const [saving, setSaving] = useState(false);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [loadingTest, setLoadingTest] = useState(false);
+
+  // Load test data when editing
+  useEffect(() => {
+    if (isEditing && testId) {
+      loadTestData(testId);
+    }
+  }, [testId]);
+
+  const loadTestData = async (id: string) => {
+    setLoadingTest(true);
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (testError || !testData) throw testError || new Error('Test not found');
+
+      setTitle(testData.title);
+      setDescription(testData.description || '');
+      setIsPublic(testData.is_public);
+      setTestType((testData as any).test_type || 'practice');
+      setTimeLimitMinutes(testData.time_limit_minutes);
+      setShowResults(testData.show_results);
+
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('test_id', id)
+        .order('order_index', { ascending: true });
+
+      if (questionsError) throw questionsError;
+
+      if (questionsData && questionsData.length > 0) {
+        setQuestions(questionsData.map(q => ({
+          id: q.id,
+          question_text: q.question_text || '',
+          question_image_url: q.question_image_url || '',
+          question_type: q.question_type as 'multiple_choice' | 'text_input',
+          options: (q.options as string[]) || ['', '', '', ''],
+          correct_answer: q.correct_answer,
+          points: q.points,
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading test:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load the test.' });
+    } finally {
+      setLoadingTest(false);
+    }
+  };
 
   const addQuestion = () => {
     setQuestions([...questions, createEmptyQuestion()]);
@@ -100,13 +156,16 @@ export default function CreateTest() {
 
   const handleImageUpload = async (questionIndex: number, file: File) => {
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop() || 'png';
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `questions/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('question-images')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
 
       if (uploadError) throw uploadError;
 
@@ -115,16 +174,13 @@ export default function CreateTest() {
         .getPublicUrl(filePath);
 
       updateQuestion(questionIndex, { question_image_url: urlData.publicUrl });
-      toast({
-        title: 'Image uploaded',
-        description: 'The image has been added to the question.',
-      });
-    } catch (error) {
+      toast({ title: 'Image uploaded', description: 'The image has been added to the question.' });
+    } catch (error: any) {
       console.error('Error uploading image:', error);
       toast({
         variant: 'destructive',
         title: 'Upload failed',
-        description: 'Could not upload the image. Please try again.',
+        description: error?.message || 'Could not upload the image. Please try again.',
       });
     }
   };
@@ -133,88 +189,100 @@ export default function CreateTest() {
     if (!user) return;
 
     if (!title.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation error',
-        description: 'Please enter a test title.',
-      });
+      toast({ variant: 'destructive', title: 'Validation error', description: 'Please enter a test title.' });
       return;
     }
 
     if (questions.some((q) => !q.question_text.trim() && !q.question_image_url)) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation error',
-        description: 'Each question must have either text or an image.',
-      });
+      toast({ variant: 'destructive', title: 'Validation error', description: 'Each question must have either text or an image.' });
       return;
     }
 
     if (questions.some((q) => !q.correct_answer.trim())) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation error',
-        description: 'Please provide a correct answer for each question.',
-      });
+      toast({ variant: 'destructive', title: 'Validation error', description: 'Please provide a correct answer for each question.' });
       return;
     }
 
     setSaving(true);
 
     try {
-      // Create test
-      const { data: testData, error: testError } = await supabase
-        .from('tests')
-        .insert({
-          title: title.trim(),
-          description: description.trim() || null,
-          is_public: isPublic,
-          time_limit_minutes: timeLimitMinutes,
-          show_results: showResults,
-          created_by: user.id,
-        })
-        .select()
-        .single();
+      if (isEditing && testId) {
+        // Update existing test
+        const { error: testError } = await supabase
+          .from('tests')
+          .update({
+            title: title.trim(),
+            description: description.trim() || null,
+            is_public: isPublic,
+            time_limit_minutes: timeLimitMinutes,
+            show_results: showResults,
+            test_type: testType,
+          } as any)
+          .eq('id', testId);
 
-      if (testError) throw testError;
+        if (testError) throw testError;
 
-      // Create questions
-      const questionsToInsert = questions.map((q, index) => ({
-        test_id: testData.id,
-        question_text: q.question_text.trim() || null,
-        question_image_url: q.question_image_url || null,
-        question_type: q.question_type,
-        options: q.question_type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : null,
-        correct_answer: q.correct_answer.trim(),
-        points: q.points,
-        order_index: index,
-      }));
+        // Delete existing questions then re-insert
+        await supabase.from('questions').delete().eq('test_id', testId);
 
-      const { error: questionsError } = await supabase
-        .from('questions')
-        .insert(questionsToInsert);
+        const questionsToInsert = questions.map((q, index) => ({
+          test_id: testId,
+          question_text: q.question_text.trim() || null,
+          question_image_url: q.question_image_url || null,
+          question_type: q.question_type,
+          options: q.question_type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : null,
+          correct_answer: q.correct_answer.trim(),
+          points: q.points,
+          order_index: index,
+        }));
 
-      if (questionsError) throw questionsError;
+        const { error: questionsError } = await supabase.from('questions').insert(questionsToInsert);
+        if (questionsError) throw questionsError;
 
-      toast({
-        title: 'Test created!',
-        description: 'Your test has been saved successfully.',
-      });
+        toast({ title: 'Test updated!', description: 'Your test has been saved successfully.' });
+      } else {
+        // Create new test
+        const { data: testData, error: testError } = await supabase
+          .from('tests')
+          .insert({
+            title: title.trim(),
+            description: description.trim() || null,
+            is_public: isPublic,
+            time_limit_minutes: timeLimitMinutes,
+            show_results: showResults,
+            created_by: user.id,
+            test_type: testType,
+          } as any)
+          .select()
+          .single();
+
+        if (testError) throw testError;
+
+        const questionsToInsert = questions.map((q, index) => ({
+          test_id: testData.id,
+          question_text: q.question_text.trim() || null,
+          question_image_url: q.question_image_url || null,
+          question_type: q.question_type,
+          options: q.question_type === 'multiple_choice' ? q.options.filter((o) => o.trim()) : null,
+          correct_answer: q.correct_answer.trim(),
+          points: q.points,
+          order_index: index,
+        }));
+
+        const { error: questionsError } = await supabase.from('questions').insert(questionsToInsert);
+        if (questionsError) throw questionsError;
+
+        toast({ title: 'Test created!', description: 'Your test has been saved successfully.' });
+      }
 
       navigate('/admin/tests');
     } catch (error) {
-      console.error('Error creating test:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not save the test. Please try again.',
-      });
+      console.error('Error saving test:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not save the test. Please try again.' });
     } finally {
       setSaving(false);
     }
   };
-
-  const activeQuestion = questions[activeQuestionIndex];
 
   // Global paste handler for clipboard images
   useEffect(() => {
@@ -234,6 +302,16 @@ export default function CreateTest() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [activeQuestionIndex]);
 
+  const activeQuestion = questions[activeQuestionIndex];
+
+  if (loadingTest) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="pb-8">
       <div className="flex items-center gap-4 mb-8">
@@ -241,7 +319,7 @@ export default function CreateTest() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Create Test</h1>
+          <h1 className="text-3xl font-bold">{isEditing ? 'Edit Test' : 'Create Test'}</h1>
           <p className="text-muted-foreground">Add questions and configure your test</p>
         </div>
       </div>
@@ -275,6 +353,18 @@ export default function CreateTest() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Test Type</Label>
+                <Select value={testType} onValueChange={(v: 'practice' | 'olympiad') => setTestType(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="practice">📝 Practice (multiple attempts)</SelectItem>
+                    <SelectItem value="olympiad">🏆 Olympiad (one attempt only)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="timeLimit">Time Limit (minutes)</Label>
                 <Input
                   id="timeLimit"
@@ -287,19 +377,11 @@ export default function CreateTest() {
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="isPublic">Public Test</Label>
-                <Switch
-                  id="isPublic"
-                  checked={isPublic}
-                  onCheckedChange={setIsPublic}
-                />
+                <Switch id="isPublic" checked={isPublic} onCheckedChange={setIsPublic} />
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="showResults">Show Results</Label>
-                <Switch
-                  id="showResults"
-                  checked={showResults}
-                  onCheckedChange={setShowResults}
-                />
+                <Switch id="showResults" checked={showResults} onCheckedChange={setShowResults} />
               </div>
             </CardContent>
           </Card>
@@ -400,7 +482,7 @@ export default function CreateTest() {
 
                 {/* Image upload */}
                 <div className="space-y-2">
-                  <Label>Question Image (optional)</Label>
+                  <Label>Question Image (optional — upload, drag, or paste from clipboard)</Label>
                   {activeQuestion.question_image_url ? (
                     <div className="relative">
                       <img
@@ -420,18 +502,6 @@ export default function CreateTest() {
                   ) : (
                     <label
                       className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onPaste={(e) => {
-                        const items = e.clipboardData?.items;
-                        if (items) {
-                          for (const item of Array.from(items)) {
-                            if (item.type.startsWith('image/')) {
-                              const file = item.getAsFile();
-                              if (file) handleImageUpload(activeQuestionIndex, file);
-                              break;
-                            }
-                          }
-                        }
-                      }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
@@ -452,7 +522,7 @@ export default function CreateTest() {
                         }}
                       />
                       <Upload className="h-6 w-6 text-muted-foreground" />
-                      <span className="text-muted-foreground">Click to upload, drag & drop, or paste from clipboard</span>
+                      <span className="text-muted-foreground text-sm text-center">Click to upload, drag & drop, or paste from clipboard (Ctrl+V)</span>
                     </label>
                   )}
                 </div>
@@ -463,11 +533,7 @@ export default function CreateTest() {
                     <div className="flex items-center justify-between">
                       <Label>Options</Label>
                       {activeQuestion.options.length < 6 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addOption(activeQuestionIndex)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => addOption(activeQuestionIndex)}>
                           <Plus className="h-3 w-3 mr-1" />
                           Add Option
                         </Button>
@@ -550,7 +616,7 @@ export default function CreateTest() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Test'}
+              {saving ? 'Saving...' : isEditing ? 'Update Test' : 'Save Test'}
             </Button>
           </div>
         </div>
