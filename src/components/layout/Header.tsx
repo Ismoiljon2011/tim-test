@@ -30,7 +30,8 @@ export function Header() {
     navigate('/');
   };
 
-  const userInitials = user?.email?.slice(0, 2).toUpperCase() || 'U';
+  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
+  const userInitials = username.slice(0, 2).toUpperCase();
 
   return (
     <motion.header
@@ -95,7 +96,7 @@ export function Header() {
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <div className="flex items-center justify-start gap-2 p-2">
                   <div className="flex flex-col space-y-1 leading-none">
-                    <p className="font-medium">{user.email}</p>
+                    <p className="font-medium">{username}</p>
                     {isAdmin && (
                       <p className="text-xs text-muted-foreground">Administrator</p>
                     )}
