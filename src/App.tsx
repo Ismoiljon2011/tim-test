@@ -16,6 +16,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Tests = lazy(() => import("./pages/Tests"));
 const TakeTest = lazy(() => import("./pages/TakeTest"));
+const Profile = lazy(() => import("./pages/Profile"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
 const AdminTests = lazy(() => import("./pages/admin/AdminTests"));
@@ -71,6 +72,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <TakeTest />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
                     </ProtectedRoute>
                   }
                 />
