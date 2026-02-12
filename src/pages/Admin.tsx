@@ -70,7 +70,8 @@ export default function Admin() {
                   to={item.path}
                   onClick={() => setMobileSidebarOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
+                    "flex items-center rounded-lg transition-colors",
+                    sidebarCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2",
                     isActive
                       ? "bg-primary text-primary-foreground"
                       : "hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -86,7 +87,10 @@ export default function Admin() {
           <div className="pt-4 border-t">
             <Link
               to="/dashboard"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className={cn(
+                "flex items-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+                sidebarCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
+              )}
             >
               <ChevronLeft className="h-5 w-5" />
               {!sidebarCollapsed && <span>{t('admin.backToApp')}</span>}

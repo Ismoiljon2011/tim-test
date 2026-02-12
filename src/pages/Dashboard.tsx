@@ -169,12 +169,12 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={barChartData}>
+                  <BarChart data={barChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(value: number) => [`${value}%`, 'Score']} />
-                    <Bar dataKey="score" fill="hsl(221, 83%, 53%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="score" fill="hsl(221, 83%, 53%)" radius={[4, 4, 0, 0]} maxBarSize={60} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -187,7 +187,7 @@ export default function Dashboard() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
-                    <Pie data={pieChartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                    <Pie data={pieChartData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="value" paddingAngle={2} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
                       {pieChartData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}

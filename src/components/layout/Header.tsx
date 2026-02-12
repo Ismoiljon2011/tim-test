@@ -14,7 +14,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function Header() {
   const { user, isAdmin } = useAuth();
@@ -30,7 +31,22 @@ export function Header() {
     navigate('/');
   };
 
-  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
+  const [displayName, setDisplayName] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('profiles')
+        .select('username, display_name')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setDisplayName(data?.display_name || data?.username || user.user_metadata?.username || 'User');
+        });
+    }
+  }, [user]);
+
+  const username = displayName || user?.user_metadata?.username || 'User';
   const userInitials = username.slice(0, 2).toUpperCase();
 
   return (
