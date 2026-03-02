@@ -19,7 +19,7 @@ export function LanguageSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full text-lg">
+        <Button variant="ghost" size="sm" className="rounded-full text-lg px-2">
           {flags[language].flag}
         </Button>
       </DropdownMenuTrigger>
@@ -30,7 +30,7 @@ export function LanguageSwitcher() {
             onClick={() => setLanguage(lang)}
             className={`flex items-center gap-2 ${language === lang ? 'bg-muted' : ''}`}
           >
-            <span className="text-lg">{flags[lang].flag}</span>
+            <span className="text-xl">{flags[lang].flag}</span>
             <span>{flags[lang].label}</span>
           </DropdownMenuItem>
         ))}

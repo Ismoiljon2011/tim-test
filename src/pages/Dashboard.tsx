@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface TestResult {
   id: string;
@@ -27,7 +27,36 @@ interface Test {
   time_limit_minutes: number | null;
 }
 
-const CHART_COLORS = ['hsl(221, 83%, 53%)', 'hsl(262, 83%, 58%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)'];
+const CHART_COLORS = [
+  'hsl(142, 71%, 45%)',  // green - excellent
+  'hsl(217, 91%, 60%)',  // blue - good
+  'hsl(38, 92%, 50%)',   // amber - average
+  'hsl(0, 84%, 60%)',    // red - poor
+];
+
+const CustomTooltipBar = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">
+        <p className="font-medium text-popover-foreground">{label}</p>
+        <p className="text-primary font-bold">{payload[0].value}%</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomTooltipPie = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">
+        <p className="font-medium text-popover-foreground">{payload[0].name}</p>
+        <p style={{ color: payload[0].payload.fill }} className="font-bold">{payload[0].value} test(s)</p>
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
@@ -97,10 +126,10 @@ export default function Dashboard() {
       else poor++;
     });
     return [
-      { name: '80-100%', value: excellent },
-      { name: '60-79%', value: good },
-      { name: '40-59%', value: average },
-      { name: '0-39%', value: poor },
+      { name: '⭐ 80-100%', value: excellent, label: 'A\'lo' },
+      { name: '👍 60-79%', value: good, label: 'Yaxshi' },
+      { name: '📝 40-59%', value: average, label: 'O\'rta' },
+      { name: '📚 0-39%', value: poor, label: 'Mashq qiling' },
     ].filter(d => d.value > 0);
   }, [allResults]);
 
@@ -159,7 +188,7 @@ export default function Dashboard() {
         {/* Charts */}
         {allResults.length > 0 && (
           <div className="grid gap-8 lg:grid-cols-2 mb-8">
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-primary" />
@@ -168,31 +197,55 @@ export default function Dashboard() {
                 <CardDescription>Score % per test</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={barChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value: number) => [`${value}%`, 'Score']} />
-                    <Bar dataKey="score" fill="hsl(221, 83%, 53%)" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(217, 91%, 60%)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.6} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip content={<CustomTooltipBar />} cursor={{ fill: 'transparent' }} />
+                    <Bar dataKey="score" fill="url(#barGradient)" radius={[8, 8, 0, 0]} maxBarSize={50} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
-                <CardTitle>Score Distribution</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-primary" />
+                  Score Distribution
+                </CardTitle>
                 <CardDescription>How your scores are distributed</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={pieChartData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="value" paddingAngle={2} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      dataKey="value"
+                      paddingAngle={4}
+                      cornerRadius={6}
+                      stroke="none"
+                    >
                       {pieChartData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip content={<CustomTooltipPie />} />
+                    <Legend
+                      verticalAlign="bottom"
+                      height={36}
+                      formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -225,7 +278,7 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold">{result.score}/{result.max_score}</p>
+                        <p className="text-lg font-bold">{result.score}/{result.max_score} <span className="text-xs font-normal text-muted-foreground">pts</span></p>
                         <p className="text-sm text-muted-foreground">
                           {((result.score / result.max_score) * 100).toFixed(0)}%
                         </p>

@@ -1,4 +1,3 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PostsManager } from '@/components/admin/PostsManager';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -14,15 +13,7 @@ export default function AdminSettings() {
 
       <div className="space-y-8">
         {/* Posts Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('admin.posts')}</CardTitle>
-            <CardDescription>{t('admin.managePosts')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PostsManager />
-          </CardContent>
-        </Card>
+        <PostsManager />
       </div>
     </div>
   );

@@ -313,7 +313,7 @@ export default function CreateTest() {
   }
 
   return (
-    <div className="pb-8">
+    <div className="pb-8 overflow-x-hidden">
       <div className="flex items-center gap-4 mb-8">
         <Button variant="ghost" size="icon" onClick={() => navigate('/admin/tests')}>
           <ArrowLeft className="h-5 w-5" />
@@ -531,7 +531,7 @@ export default function CreateTest() {
                 {activeQuestion.question_type === 'multiple_choice' && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label>Options</Label>
+                      <Label>Options (math symbols supported)</Label>
                       {activeQuestion.options.length < 6 && (
                         <Button variant="outline" size="sm" onClick={() => addOption(activeQuestionIndex)}>
                           <Plus className="h-3 w-3 mr-1" />
@@ -540,21 +540,24 @@ export default function CreateTest() {
                       )}
                     </div>
                     {activeQuestion.options.map((option, optionIndex) => (
-                      <div key={optionIndex} className="flex gap-2">
-                        <Input
-                          value={option}
-                          onChange={(e) => updateOption(activeQuestionIndex, optionIndex, e.target.value)}
-                          placeholder={`Option ${optionIndex + 1}`}
-                        />
-                        {activeQuestion.options.length > 2 && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeOption(activeQuestionIndex, optionIndex)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                      <div key={optionIndex} className="space-y-1">
+                        <div className="flex gap-2">
+                          <MathEditor
+                            value={option}
+                            onChange={(val) => updateOption(activeQuestionIndex, optionIndex, val)}
+                            placeholder={`Option ${optionIndex + 1}`}
+                          />
+                          {activeQuestion.options.length > 2 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0 mt-auto"
+                              onClick={() => removeOption(activeQuestionIndex, optionIndex)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

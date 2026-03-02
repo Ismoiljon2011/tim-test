@@ -283,10 +283,10 @@ export default function Index() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <span className="text-sm font-bold text-primary-foreground">T</span>
               </div>
-              <span className="font-semibold">TestHub</span>
+              <span className="font-semibold">TIM-Test</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} TestHub. All rights reserved.
+              © {new Date().getFullYear()} TIM-Test. All rights reserved.
             </p>
           </div>
         </div>
