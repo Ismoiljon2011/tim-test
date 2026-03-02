@@ -40,6 +40,7 @@ interface Test {
   description: string | null;
   time_limit_minutes: number | null;
   show_results: boolean;
+  test_type?: string;
 }
 
 export default function TakeTest() {
@@ -59,10 +60,12 @@ export default function TakeTest() {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [testCompleted, setTestCompleted] = useState(false);
   const [result, setResult] = useState<{ score: number; maxScore: number } | null>(null);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [alreadyTaken, setAlreadyTaken] = useState(false);
 
   useEffect(() => {
     if (testId && user) {
-      fetchTestData();
+      checkProfileAndFetchTest();
     }
   }, [testId, user]);
 
@@ -85,16 +88,56 @@ export default function TakeTest() {
     return () => clearInterval(interval);
   }, [test, startTime, testCompleted]);
 
+  const checkProfileAndFetchTest = async () => {
+    if (!user) return;
+
+    try {
+      // Check profile completeness
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const p = profile as any;
+      if (!p?.first_name || !p?.last_name || !p?.fathers_name || !p?.school || !p?.age) {
+        setProfileIncomplete(true);
+        setLoading(false);
+        return;
+      }
+
+      await fetchTestData();
+    } catch (error) {
+      console.error('Error:', error);
+      setLoading(false);
+    }
+  };
+
   const fetchTestData = async () => {
     try {
       const { data: testData, error: testError } = await supabase
         .from('tests')
-        .select('id, title, description, time_limit_minutes, show_results')
+        .select('id, title, description, time_limit_minutes, show_results, test_type')
         .eq('id', testId)
         .single();
 
       if (testError) throw testError;
-      setTest(testData);
+      setTest(testData as Test);
+
+      // Check olympiad: already taken?
+      if (testData.test_type === 'olympiad' && user) {
+        const { data: existingResults } = await supabase
+          .from('test_results')
+          .select('id')
+          .eq('test_id', testId!)
+          .eq('user_id', user.id);
+
+        if (existingResults && existingResults.length > 0) {
+          setAlreadyTaken(true);
+          setLoading(false);
+          return;
+        }
+      }
 
       if (testData.time_limit_minutes) {
         setTimeRemaining(testData.time_limit_minutes * 60);
@@ -103,7 +146,7 @@ export default function TakeTest() {
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
         .select('*')
-        .eq('test_id', testId)
+        .eq('test_id', testId!)
         .order('order_index', { ascending: true });
 
       if (questionsError) throw questionsError;
@@ -196,6 +239,42 @@ export default function TakeTest() {
     );
   }
 
+  // Profile incomplete - block test
+  if (profileIncomplete) {
+    return (
+      <div className="container py-8">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-lg mx-auto text-center">
+          <Card className="p-8">
+            <AlertCircle className="h-16 w-16 text-warning mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2">Profile Incomplete</h1>
+            <p className="text-muted-foreground mb-6">
+              Please fill in your personal information (First Name, Last Name, Father's Name, School, Age) before starting a test.
+            </p>
+            <Button onClick={() => navigate('/profile')}>Go to Profile</Button>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Olympiad already taken
+  if (alreadyTaken) {
+    return (
+      <div className="container py-8">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-lg mx-auto text-center">
+          <Card className="p-8">
+            <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2">Olympiad Already Completed</h1>
+            <p className="text-muted-foreground mb-6">
+              This is an Olympiad test and can only be taken once. You have already completed it.
+            </p>
+            <Button onClick={() => navigate('/tests')}>Back to Tests</Button>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (testCompleted && result) {
     const percentage = (result.score / result.maxScore) * 100;
 
@@ -216,7 +295,7 @@ export default function TakeTest() {
             {test?.show_results && (
               <div className="space-y-4 mb-8">
                 <div className="text-5xl font-bold">
-                  {result.score}/{result.maxScore}
+                  {result.score}/{result.maxScore} <span className="text-2xl font-medium text-muted-foreground">points</span>
                 </div>
                 <div className="text-2xl text-muted-foreground">
                   {percentage.toFixed(0)}%

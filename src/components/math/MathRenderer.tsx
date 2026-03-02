@@ -151,14 +151,20 @@ export function MathEditor({ value, onChange, placeholder = 'Enter math expressi
 
     const start = textareaRef.current.selectionStart;
     const end = textareaRef.current.selectionEnd;
-    const newValue = value.substring(0, start) + latex + value.substring(end);
+    // Add a space before the symbol if the previous character is not a space/empty
+    const before = value.substring(0, start);
+    const after = value.substring(end);
+    const needsSpaceBefore = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n');
+    const needsSpaceAfter = after.length > 0 && !after.startsWith(' ') && !after.startsWith('\n');
+    const insertion = (needsSpaceBefore ? ' ' : '') + latex + (needsSpaceAfter ? ' ' : '');
+    const newValue = before + insertion + after;
     
     onChange(newValue);
     
     // Set cursor position after inserted text
     setTimeout(() => {
       if (textareaRef.current) {
-        const newPos = start + latex.length;
+        const newPos = start + insertion.length;
         textareaRef.current.setSelectionRange(newPos, newPos);
         textareaRef.current.focus();
       }
@@ -209,7 +215,7 @@ export function MathEditor({ value, onChange, placeholder = 'Enter math expressi
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full min-h-[100px] p-3 border rounded-lg bg-background font-mono text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full min-h-[100px] p-3 border rounded-lg bg-background font-mono text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring break-all overflow-wrap-anywhere"
         />
       </div>
 
