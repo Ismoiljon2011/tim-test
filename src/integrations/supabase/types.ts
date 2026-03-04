@@ -51,12 +51,17 @@ export type Database = {
         Row: {
           age: number | null
           avatar_url: string | null
+          ban_reason: string | null
+          banned_at: string | null
+          banned_by: string | null
           created_at: string
           display_name: string | null
           fathers_name: string | null
           first_name: string | null
           id: string
+          is_banned: boolean
           last_name: string | null
+          must_change_password: boolean
           phone: string | null
           school: string | null
           updated_at: string
@@ -66,12 +71,17 @@ export type Database = {
         Insert: {
           age?: number | null
           avatar_url?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           created_at?: string
           display_name?: string | null
           fathers_name?: string | null
           first_name?: string | null
           id?: string
+          is_banned?: boolean
           last_name?: string | null
+          must_change_password?: boolean
           phone?: string | null
           school?: string | null
           updated_at?: string
@@ -81,12 +91,17 @@ export type Database = {
         Update: {
           age?: number | null
           avatar_url?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           created_at?: string
           display_name?: string | null
           fathers_name?: string | null
           first_name?: string | null
           id?: string
+          is_banned?: boolean
           last_name?: string | null
+          must_change_password?: boolean
           phone?: string | null
           school?: string | null
           updated_at?: string

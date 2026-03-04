@@ -13,9 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 export function Header() {
   const { user, isAdmin } = useAuth();
@@ -23,6 +24,7 @@ export function Header() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { signOut } = useAuth();
   
@@ -32,19 +34,32 @@ export function Header() {
   };
 
   const [displayName, setDisplayName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      supabase
-        .from('profiles')
-        .select('username, display_name')
-        .eq('user_id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          setDisplayName(data?.display_name || data?.username || user.user_metadata?.username || 'User');
-        });
+      const fetchProfile = () => {
+        supabase
+          .from('profiles')
+          .select('username, display_name, avatar_url')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            setDisplayName(data?.display_name || data?.username || user.user_metadata?.username || 'User');
+            setAvatarUrl(data?.avatar_url || null);
+          });
+      };
+      fetchProfile();
+
+      // Listen for profile query invalidation
+      const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+        if (event?.type === 'updated' && event.query.queryKey[0] === 'profile') {
+          fetchProfile();
+        }
+      });
+      return () => unsubscribe();
     }
-  }, [user]);
+  }, [user, queryClient]);
 
   const username = displayName || user?.user_metadata?.username || 'User';
   const userInitials = username.slice(0, 2).toUpperCase();
@@ -85,17 +100,8 @@ export function Header() {
         <div className="flex items-center gap-2">
           <LanguageSwitcher />
           
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="rounded-full"
-          >
-            {theme === 'light' ? (
-              <Moon className="h-5 w-5" />
-            ) : (
-              <Sun className="h-5 w-5" />
-            )}
+          <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full">
+            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
 
           {user ? (
@@ -103,6 +109,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                   <Avatar className="h-9 w-9">
+                    <AvatarImage src={avatarUrl || undefined} alt={username} />
                     <AvatarFallback className="bg-primary text-primary-foreground">
                       {userInitials}
                     </AvatarFallback>
@@ -111,6 +118,12 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <div className="flex items-center justify-start gap-2 p-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={avatarUrl || undefined} alt={username} />
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                      {userInitials}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="flex flex-col space-y-1 leading-none">
                     <p className="font-medium">{username}</p>
                     {isAdmin && (
@@ -157,19 +170,12 @@ export function Header() {
             </div>
           )}
 
-          {/* Mobile menu button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
       </div>
 
-      {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
@@ -180,44 +186,24 @@ export function Header() {
           <nav className="container py-4 flex flex-col gap-2">
             {user ? (
               <>
-                <Link
-                  to="/dashboard"
-                  className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
+                <Link to="/dashboard" className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
                   {t('nav.dashboard')}
                 </Link>
-                <Link
-                  to="/tests"
-                  className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
+                <Link to="/tests" className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
                   {t('nav.tests')}
                 </Link>
                 {isAdmin && (
-                  <Link
-                    to="/admin"
-                    className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
+                  <Link to="/admin" className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
                     {t('nav.adminPanel')}
                   </Link>
                 )}
               </>
             ) : (
               <>
-                <Link
-                  to="/auth"
-                  className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
+                <Link to="/auth" className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
                   {t('nav.signIn')}
                 </Link>
-                <Link
-                  to="/auth?mode=signup"
-                  className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg text-center"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
+                <Link to="/auth?mode=signup" className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg text-center" onClick={() => setMobileMenuOpen(false)}>
                   {t('nav.getStarted')}
                 </Link>
               </>

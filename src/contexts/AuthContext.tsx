@@ -11,9 +11,11 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   userRole: UserRole;
+  mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, username: string, phone?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, username: string, phone?: string, firstName?: string, lastName?: string, fathersName?: string, school?: string, age?: number) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  clearMustChangePassword: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('user');
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const checkAdminRole = async (userId: string) => {
     const { data, error } = await supabase
@@ -47,6 +50,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const checkMustChangePassword = async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('must_change_password, is_banned, ban_reason')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (data) {
+      const profile = data as any;
+      if (profile.is_banned) {
+        // Sign out banned users
+        const reason = profile.ban_reason || 'No reason provided';
+        await supabase.auth.signOut();
+        // Store ban message for display
+        sessionStorage.setItem('ban_message', reason);
+        return;
+      }
+      setMustChangePassword(!!profile.must_change_password);
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -57,9 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setTimeout(() => {
             checkAdminRole(session.user.id);
+            checkMustChangePassword(session.user.id);
           }, 0);
         } else {
           setIsAdmin(false);
+          setMustChangePassword(false);
         }
       }
     );
@@ -71,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         checkAdminRole(session.user.id);
+        checkMustChangePassword(session.user.id);
       }
     });
 
@@ -82,9 +109,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error as Error | null };
   };
 
-  const signUp = async (email: string, password: string, username: string, phone?: string) => {
+  const signUp = async (
+    email: string, password: string, username: string,
+    phone?: string, firstName?: string, lastName?: string,
+    fathersName?: string, school?: string, age?: number
+  ) => {
     const redirectUrl = `${window.location.origin}/`;
     
+    // Check blacklist
+    const { data: blacklist } = await supabase
+      .from('username_blacklist')
+      .select('word');
+    
+    if (blacklist) {
+      const lowerUsername = username.toLowerCase();
+      const blocked = blacklist.some(b => lowerUsername.includes(b.word.toLowerCase()));
+      if (blocked) {
+        return { error: new Error('This username contains inappropriate language. Please choose another.') };
+      }
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -106,7 +150,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           username,
           display_name: username,
           phone: phone || null,
-        });
+          first_name: firstName || null,
+          last_name: lastName || null,
+          fathers_name: fathersName || null,
+          school: school || null,
+          age: age || null,
+        } as any);
       
       if (profileError) {
         console.error('Profile creation error:', profileError);
@@ -131,10 +180,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(false);
     setIsSuperAdmin(false);
     setUserRole('user');
+    setMustChangePassword(false);
+  };
+
+  const clearMustChangePassword = () => {
+    setMustChangePassword(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, isSuperAdmin, userRole, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isAdmin, isSuperAdmin, userRole, mustChangePassword, signIn, signUp, signOut, clearMustChangePassword }}>
       {children}
     </AuthContext.Provider>
   );
