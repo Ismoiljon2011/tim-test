@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Search, UserCog, Calendar, Shield, ShieldCheck, Crown, Key } from 'lucide-react';
+import { Search, UserCog, Calendar, Shield, ShieldCheck, Crown, Key, Ban, Trash2, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +31,8 @@ interface User {
   created_at: string;
   phone: string | null;
   role: 'user' | 'admin' | 'super_admin';
+  is_banned?: boolean;
+  ban_reason?: string | null;
 }
 
 export default function AdminUsers() {
@@ -37,7 +44,12 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -82,11 +94,7 @@ export default function AdminUsers() {
   };
 
   const toggleAdminRole = async (user: User) => {
-    if (!isSuperAdmin) {
-      toast({ variant: 'destructive', title: 'Permission denied', description: 'Only Super Admins can manage user roles.' });
-      return;
-    }
-
+    if (!isSuperAdmin) return;
     try {
       if (user.role === 'admin') {
         const { error } = await supabase.from('user_roles').delete().eq('user_id', user.user_id).eq('role', 'admin');
@@ -97,23 +105,95 @@ export default function AdminUsers() {
         if (error) throw error;
         toast({ title: 'Role updated', description: `${user.username} is now an admin.` });
       }
-
       fetchUsers();
       setDialogOpen(false);
     } catch (error) {
-      console.error('Error updating role:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'Could not update user role.' });
     }
   };
 
   const handleResetPassword = async () => {
-    if (!selectedUser || !newPassword) return;
-    toast({
-      title: 'Password reset',
-      description: `Password reset requested for ${selectedUser.username}. The user should use the forgot password flow.`,
-    });
-    setResetDialogOpen(false);
-    setNewPassword('');
+    if (!selectedUser) return;
+    setActionLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('admin-reset-password', {
+        body: { user_id: selectedUser.user_id },
+      });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
+      setTempPassword(res.data.temp_password);
+      toast({ title: 'Password reset', description: 'Temporary password generated.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBanUser = async () => {
+    if (!selectedUser || !banReason.trim()) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Ban reason is required.' });
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await supabase.functions.invoke('ban-user', {
+        body: { user_id: selectedUser.user_id, ban: true, reason: banReason },
+      });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: 'User banned', description: `${selectedUser.username} has been banned.` });
+      setBanDialogOpen(false);
+      setBanReason('');
+      fetchUsers();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnbanUser = async (user: User) => {
+    setActionLoading(true);
+    try {
+      const res = await supabase.functions.invoke('ban-user', {
+        body: { user_id: user.user_id, ban: false },
+      });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: 'User unbanned', description: `${user.username} has been unbanned.` });
+      fetchUsers();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    setActionLoading(true);
+    try {
+      const res = await supabase.functions.invoke('delete-user', {
+        body: { user_id: selectedUser.user_id },
+      });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: 'User deleted', description: `${selectedUser.username} has been permanently deleted.` });
+      setDeleteDialogOpen(false);
+      fetchUsers();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const filteredUsers = users.filter(
@@ -178,53 +258,78 @@ export default function AdminUsers() {
           ) : filteredUsers.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">{t('adminUsers.noUsers')}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('adminUsers.user')}</TableHead>
-                  <TableHead>{t('adminUsers.username')}</TableHead>
-                  <TableHead>{t('adminUsers.role')}</TableHead>
-                  <TableHead>{t('adminUsers.joined')}</TableHead>
-                  <TableHead className="text-right">{t('adminUsers.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback>
-                            {(user.display_name || user.username).slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{user.display_name || user.username}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>@{user.username}</TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(user.created_at)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {isSuperAdmin && (
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setResetDialogOpen(true); }}>
-                            <Key className="h-4 w-4 mr-2" />{t('adminUsers.resetPassword')}
-                          </Button>
-                        )}
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setDialogOpen(true); }}>
-                          <UserCog className="h-4 w-4 mr-2" />{t('adminUsers.manage')}
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('adminUsers.user')}</TableHead>
+                    <TableHead>{t('adminUsers.username')}</TableHead>
+                    <TableHead>{t('adminUsers.role')}</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>{t('adminUsers.joined')}</TableHead>
+                    <TableHead className="text-right">{t('adminUsers.actions')}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id} className={user.is_banned ? 'opacity-60' : ''}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarImage src={user.avatar_url || undefined} />
+                            <AvatarFallback>
+                              {(user.display_name || user.username).slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium">{user.display_name || user.username}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>@{user.username}</TableCell>
+                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      <TableCell>
+                        {user.is_banned ? (
+                          <Badge variant="destructive">Banned</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-green-600 border-green-600">Active</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(user.created_at)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {isSuperAdmin && user.role !== 'super_admin' && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setTempPassword(''); setResetDialogOpen(true); }}>
+                                <Key className="h-4 w-4" />
+                              </Button>
+                              {user.is_banned ? (
+                                <Button variant="outline" size="sm" onClick={() => handleUnbanUser(user)}>
+                                  Unban
+                                </Button>
+                              ) : (
+                                <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setBanReason(''); setBanDialogOpen(true); }}>
+                                  <Ban className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="outline" size="sm" className="text-destructive" onClick={() => { setSelectedUser(user); setDeleteDialogOpen(true); }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setDialogOpen(true); }}>
+                            <UserCog className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -240,6 +345,7 @@ export default function AdminUsers() {
             <div className="space-y-4 py-4">
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedUser.avatar_url || undefined} />
                   <AvatarFallback className="text-xl">{(selectedUser.display_name || selectedUser.username).slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div>
@@ -251,7 +357,6 @@ export default function AdminUsers() {
                 <p className="text-sm font-medium">{t('adminUsers.currentRole')}</p>
                 {getRoleBadge(selectedUser.role)}
               </div>
-              {!isSuperAdmin && <p className="text-sm text-muted-foreground">Only Super Admins can change user roles.</p>}
             </div>
           )}
           <DialogFooter>
@@ -269,23 +374,86 @@ export default function AdminUsers() {
       </Dialog>
 
       {/* Password Reset Dialog */}
-      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+      <Dialog open={resetDialogOpen} onOpenChange={(open) => { setResetDialogOpen(open); if (!open) setTempPassword(''); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('adminUsers.resetPassword')}</DialogTitle>
-            <DialogDescription>Reset password for {selectedUser?.display_name || selectedUser?.username}</DialogDescription>
+            <DialogDescription>Generate a temporary password for {selectedUser?.display_name || selectedUser?.username}</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              For security reasons, password resets should be done through the forgot password flow.
-            </p>
+          <div className="py-4 space-y-4">
+            {tempPassword ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Share this temporary password with the user. They will be required to change it on their next login.
+                </p>
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg font-mono text-lg">
+                  <span className="flex-1 select-all">{tempPassword}</span>
+                  <Button variant="ghost" size="icon" onClick={() => copyToClipboard(tempPassword)}>
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This will generate a one-time temporary password. The user will be forced to change their password when they log in.
+              </p>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>{t('adminUsers.cancel')}</Button>
-            <Button onClick={handleResetPassword}>Send Reset Email</Button>
+            <Button variant="outline" onClick={() => { setResetDialogOpen(false); setTempPassword(''); }}>{t('adminUsers.cancel')}</Button>
+            {!tempPassword && (
+              <Button onClick={handleResetPassword} disabled={actionLoading}>
+                {actionLoading ? 'Generating...' : 'Generate Temp Password'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Ban User Dialog */}
+      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ban User</DialogTitle>
+            <DialogDescription>Ban {selectedUser?.display_name || selectedUser?.username} from the platform</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Ban Reason *</Label>
+              <Textarea
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="Enter the reason for banning this user..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBanDialogOpen(false)}>{t('adminUsers.cancel')}</Button>
+            <Button variant="destructive" onClick={handleBanUser} disabled={actionLoading || !banReason.trim()}>
+              {actionLoading ? 'Banning...' : 'Ban User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User Permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedUser?.display_name || selectedUser?.username} and all their data. This action cannot be undone. Their username will become available for registration again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('adminUsers.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {actionLoading ? 'Deleting...' : 'Delete Permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

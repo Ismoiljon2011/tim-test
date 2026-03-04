@@ -8,13 +8,12 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -37,6 +36,8 @@ export function PostsManager() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -83,11 +84,7 @@ export function PostsManager() {
 
   const handleSave = async () => {
     if (!formData.title.trim() || !formData.content.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Title and content are required.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Title and content are required.' });
       return;
     }
 
@@ -122,36 +119,24 @@ export function PostsManager() {
       setDialogOpen(false);
       fetchPosts();
     } catch (error) {
-      console.error('Error saving post:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not save post.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not save post.' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (postId: string) => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
-
+  const handleDelete = async () => {
+    if (!deletingPostId) return;
     try {
-      const { error } = await supabase
-        .from('posts')
-        .delete()
-        .eq('id', postId);
-
+      const { error } = await supabase.from('posts').delete().eq('id', deletingPostId);
       if (error) throw error;
       toast({ title: 'Post deleted!' });
       fetchPosts();
     } catch (error) {
-      console.error('Error deleting post:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not delete post.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not delete post.' });
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeletingPostId(null);
     }
   };
 
@@ -161,7 +146,6 @@ export function PostsManager() {
         .from('posts')
         .update({ is_published: !post.is_published })
         .eq('id', post.id);
-
       if (error) throw error;
       fetchPosts();
     } catch (error) {
@@ -171,9 +155,7 @@ export function PostsManager() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      month: 'short', day: 'numeric', year: 'numeric',
     });
   };
 
@@ -220,18 +202,13 @@ export function PostsManager() {
                     <p className="text-xs text-muted-foreground mt-2">{formatDate(post.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => togglePublished(post)}
-                      title={post.is_published ? 'Unpublish' : 'Publish'}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => togglePublished(post)} title={post.is_published ? 'Unpublish' : 'Publish'}>
                       {post.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(post)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(post.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => { setDeletingPostId(post.id); setDeleteDialogOpen(true); }}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -242,6 +219,7 @@ export function PostsManager() {
         </div>
       )}
 
+      {/* Edit/Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -253,42 +231,41 @@ export function PostsManager() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="title">{t('posts.postTitle')}</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter post title..."
-              />
+              <Input id="title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="Enter post title..." />
             </div>
             <div className="space-y-2">
               <Label htmlFor="content">{t('posts.content')}</Label>
-              <Textarea
-                id="content"
-                value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                placeholder="Enter post content..."
-                rows={5}
-              />
+              <Textarea id="content" value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} placeholder="Enter post content..." rows={5} />
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="is_published">{t('posts.published')}</Label>
-              <Switch
-                id="is_published"
-                checked={formData.is_published}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
-              />
+              <Switch id="is_published" checked={formData.is_published} onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              {t('adminUsers.cancel')}
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : t('posts.save')}
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('adminUsers.cancel')}</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : t('posts.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this post? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('adminUsers.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {t('posts.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
