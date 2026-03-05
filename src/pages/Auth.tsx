@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Lock, User, ArrowRight, Phone, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { Loader2, Lock, User, ArrowRight, Mail, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +20,7 @@ const signInSchema = z.object({
 
 const signUpSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
-  phone: z.string().min(1, 'Phone or email is required').max(50, 'Too long'),
+  email: z.string().email('Please enter a valid email address'),
   firstName: z.string().min(1, 'First name is required').max(50),
   lastName: z.string().min(1, 'Last name is required').max(50),
   fathersName: z.string().min(1, "Father's name is required").max(50),
@@ -73,7 +73,7 @@ export default function Auth() {
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { username: '', phone: '', firstName: '', lastName: '', fathersName: '', school: '', age: '', password: '', confirmPassword: '' },
+    defaultValues: { username: '', email: '', firstName: '', lastName: '', fathersName: '', school: '', age: '', password: '', confirmPassword: '' },
   });
 
   const handleSignIn = async (data: SignInFormData) => {
@@ -109,8 +109,9 @@ export default function Auth() {
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
     const email = usernameToEmail(data.username);
+    const internalEmail = usernameToEmail(data.username);
     const { error } = await signUp(
-      email, data.password, data.username, data.phone,
+      internalEmail, data.password, data.username, data.email,
       data.firstName, data.lastName, data.fathersName, data.school, parseInt(data.age)
     );
     setIsLoading(false);
@@ -201,12 +202,12 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-phone">{t('auth.phoneOrEmail')}</Label>
+                  <Label htmlFor="signup-email">Email *</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="signup-phone" placeholder="+998 XX XXX XX XX" className="pl-10" {...signUpForm.register('phone')} />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input id="signup-email" type="email" placeholder="example@mail.com" className="pl-10" {...signUpForm.register('email')} />
                   </div>
-                  {signUpForm.formState.errors.phone && <p className="text-xs text-destructive">{signUpForm.formState.errors.phone.message}</p>}
+                  {signUpForm.formState.errors.email && <p className="text-xs text-destructive">{signUpForm.formState.errors.email.message}</p>}
                 </div>
 
                 <div className="space-y-1.5">
