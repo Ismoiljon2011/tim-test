@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user_id: data.user.id,
           username,
           display_name: username,
-          phone: phone || null,
+          phone: phone || null, // stores email from registration
           first_name: firstName || null,
           last_name: lastName || null,
           fathers_name: fathersName || null,
