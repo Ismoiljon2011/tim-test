@@ -105,7 +105,7 @@ export function Header() {
           </Button>
 
           {user ? (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                   <Avatar className="h-9 w-9">
@@ -161,11 +161,11 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <div className="hidden md:flex items-center gap-2">
-              <Button variant="ghost" asChild>
-                <Link to="/auth">{t('nav.signIn')}</Link>
+              <Button variant="ghost" onClick={() => navigate('/auth')}>
+                {t('nav.signIn')}
               </Button>
-              <Button asChild>
-                <Link to="/auth?mode=signup">{t('nav.getStarted')}</Link>
+              <Button onClick={() => navigate('/auth?mode=signup')}>
+                {t('nav.getStarted')}
               </Button>
             </div>
           )}
@@ -200,12 +200,12 @@ export function Header() {
               </>
             ) : (
               <>
-                <Link to="/auth" className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
+                <button onClick={() => { setMobileMenuOpen(false); navigate('/auth'); }} className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-lg transition-colors text-left">
                   {t('nav.signIn')}
-                </Link>
-                <Link to="/auth?mode=signup" className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg text-center" onClick={() => setMobileMenuOpen(false)}>
+                </button>
+                <button onClick={() => { setMobileMenuOpen(false); navigate('/auth?mode=signup'); }} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg text-center">
                   {t('nav.getStarted')}
-                </Link>
+                </button>
               </>
             )}
           </nav>

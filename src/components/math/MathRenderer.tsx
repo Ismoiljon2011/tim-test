@@ -7,16 +7,80 @@ interface MathRendererProps {
   className?: string;
 }
 
+/**
+ * Splits a mixed text+LaTeX string into segments.
+ * Text segments are rendered as normal text, LaTeX segments via KaTeX.
+ */
+function parseMixedContent(input: string): Array<{ type: 'text' | 'math'; content: string }> {
+  if (!input) return [];
+  
+  // Match LaTeX commands: \commandname, \command{...}, ^{...}, _{...}, etc.
+  const latexPattern = /(\\[a-zA-Z]+(?:\[[^\]]*\])?(?:\{[^}]*\})*|[\\{}^_]|\^{[^}]*}|_{[^}]*})/;
+  
+  // Check if input contains any LaTeX
+  if (!latexPattern.test(input)) {
+    return [{ type: 'text', content: input }];
+  }
+  
+  // For inputs with LaTeX, render the whole thing as math but wrap plain text in \text{}
+  // This preserves spacing properly
+  return [{ type: 'math', content: input }];
+}
+
+/**
+ * Wraps plain-text portions in \text{} so KaTeX preserves word spacing.
+ * Only actual LaTeX commands remain outside \text{}.
+ */
+function wrapTextSegments(input: string): string {
+  if (!input) return '';
+  
+  // Split by LaTeX tokens, keeping delimiters
+  // Matches: \command{...}{...}, \command[...]{...}, ^{...}, _{...}, standalone braces
+  const tokenRegex = /(\\[a-zA-Z]+(?:\[[^\]]*?\])?(?:\{[^}]*?\})*|\^{[^}]*?}|_{[^}]*?}|[{}])/g;
+  
+  const parts: string[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  
+  while ((match = tokenRegex.exec(input)) !== null) {
+    // Text before this match
+    if (match.index > lastIndex) {
+      const textBefore = input.slice(lastIndex, match.index);
+      if (textBefore.trim()) {
+        parts.push(`\\text{${textBefore}}`);
+      } else if (textBefore) {
+        parts.push(`\\text{ }`);
+      }
+    }
+    parts.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Remaining text after last match
+  if (lastIndex < input.length) {
+    const remaining = input.slice(lastIndex);
+    if (remaining.trim()) {
+      parts.push(`\\text{${remaining}}`);
+    } else if (remaining) {
+      parts.push(`\\text{ }`);
+    }
+  }
+  
+  return parts.join('');
+}
+
 export function MathRenderer({ latex, displayMode = false, className = '' }: MathRendererProps) {
   const containerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (containerRef.current && latex) {
-      const hasLatex = /[\\{}^_]|\\[a-zA-Z]+/.test(latex);
+      const hasLatex = /[\\{}^_]/.test(latex);
       
       if (hasLatex) {
         try {
-          katex.render(latex, containerRef.current, {
+          // Wrap plain text segments in \text{} to preserve spacing
+          const processed = wrapTextSegments(latex);
+          katex.render(processed, containerRef.current, {
             displayMode,
             throwOnError: false,
             errorColor: '#cc0000',
@@ -38,7 +102,7 @@ export function MathRenderer({ latex, displayMode = false, className = '' }: Mat
     <span
       ref={containerRef}
       className={`math-renderer ${className}`}
-      style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', display: 'inline-block' }}
+      style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', display: 'inline-block', overflow: 'hidden' }}
       aria-label={latex}
     />
   );
@@ -213,11 +277,11 @@ export function MathEditor({ value, onChange, placeholder = 'Enter math expressi
         style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
       />
 
-      {/* Preview - only for non-compact */}
+      {/* Preview - only rendered version, no raw text duplicate */}
       {!compact && value && (
         <div className="p-3 bg-muted/30 rounded-lg border overflow-hidden">
           <p className="text-xs text-muted-foreground mb-1">Preview:</p>
-          <div className="text-lg overflow-x-auto">
+          <div className="text-lg overflow-x-auto max-w-full">
             <MathRenderer latex={value} displayMode />
           </div>
         </div>

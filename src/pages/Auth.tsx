@@ -47,6 +47,11 @@ export default function Auth() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
+  // Sync isSignUp with URL search params
+  useEffect(() => {
+    setIsSignUp(searchParams.get('mode') === 'signup');
+  }, [searchParams]);
+
   // Check for ban message
   const banMessage = sessionStorage.getItem('ban_message');
   useEffect(() => {
@@ -78,7 +83,6 @@ export default function Auth() {
     setIsLoading(false);
 
     if (error) {
-      // Check if banned
       const banMsg = sessionStorage.getItem('ban_message');
       if (banMsg) {
         sessionStorage.removeItem('ban_message');
@@ -132,7 +136,6 @@ export default function Auth() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        {/* Ban message */}
         {banMessage && (
           <Card className="mb-4 border-destructive">
             <CardContent className="py-4 flex items-start gap-3">
