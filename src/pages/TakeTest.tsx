@@ -373,7 +373,7 @@ export default function TakeTest() {
                     <div className="flex-1">
                       {currentQuestion?.question_text && (
                         <div className="mb-4">
-                          <MathRenderer latex={currentQuestion.question_text} displayMode />
+                          <MathRenderer latex={currentQuestion.question_text} />
                         </div>
                       )}
                       {currentQuestion?.question_image_url && (
