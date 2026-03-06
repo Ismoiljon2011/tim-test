@@ -276,7 +276,7 @@ export function MathEditor({ value, onChange, placeholder = 'Enter math expressi
         <div className="p-3 bg-muted/30 rounded-lg border overflow-hidden">
           <p className="text-xs text-muted-foreground mb-1">Preview:</p>
           <div className="text-lg overflow-x-auto max-w-full">
-            <MathRenderer latex={value} displayMode />
+            <MathRenderer latex={value} />
           </div>
         </div>
       )}
