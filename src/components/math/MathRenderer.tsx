@@ -96,7 +96,7 @@ export function MathRenderer({ latex, displayMode = false, className = '' }: Mat
     <span
       ref={containerRef}
       className={`math-renderer ${className}`}
-      style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', display: 'inline-block', overflow: 'hidden' }}
+      style={{ maxWidth: '100%', display: 'inline-block' }}
       aria-label={latex}
     />
   );
