@@ -8,65 +8,60 @@ interface MathRendererProps {
 }
 
 /**
- * Splits a mixed text+LaTeX string into segments.
- * Text segments are rendered as normal text, LaTeX segments via KaTeX.
- */
-function parseMixedContent(input: string): Array<{ type: 'text' | 'math'; content: string }> {
-  if (!input) return [];
-  
-  // Match LaTeX commands: \commandname, \command{...}, ^{...}, _{...}, etc.
-  const latexPattern = /(\\[a-zA-Z]+(?:\[[^\]]*\])?(?:\{[^}]*\})*|[\\{}^_]|\^{[^}]*}|_{[^}]*})/;
-  
-  // Check if input contains any LaTeX
-  if (!latexPattern.test(input)) {
-    return [{ type: 'text', content: input }];
-  }
-  
-  // For inputs with LaTeX, render the whole thing as math but wrap plain text in \text{}
-  // This preserves spacing properly
-  return [{ type: 'math', content: input }];
-}
-
-/**
  * Wraps plain-text portions in \text{} so KaTeX preserves word spacing.
  * Only actual LaTeX commands remain outside \text{}.
  */
 function wrapTextSegments(input: string): string {
   if (!input) return '';
   
-  // Split by LaTeX tokens, keeping delimiters
-  // Matches: \command{...}{...}, \command[...]{...}, ^{...}, _{...}, standalone braces
-  const tokenRegex = /(\\[a-zA-Z]+(?:\[[^\]]*?\])?(?:\{[^}]*?\})*|\^{[^}]*?}|_{[^}]*?}|[{}])/g;
+  // Tokenize: match LaTeX commands with their arguments, superscripts, subscripts
+  // We match greedily to avoid splitting commands from their arguments
+  const tokens: Array<{ type: 'latex' | 'text'; value: string }> = [];
+  let remaining = input;
   
-  const parts: string[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  
-  while ((match = tokenRegex.exec(input)) !== null) {
-    // Text before this match
-    if (match.index > lastIndex) {
-      const textBefore = input.slice(lastIndex, match.index);
-      if (textBefore.trim()) {
-        parts.push(`\\text{${textBefore}}`);
-      } else if (textBefore) {
-        parts.push(`\\text{ }`);
-      }
+  while (remaining.length > 0) {
+    // Try to match a LaTeX command: \command[opt]{arg}{arg}...
+    const cmdMatch = remaining.match(/^(\\[a-zA-Z]+(?:\[[^\]]*?\])?(?:\{[^}]*?\})*)/);
+    if (cmdMatch && cmdMatch[0].length > 0) {
+      tokens.push({ type: 'latex', value: cmdMatch[0] });
+      remaining = remaining.slice(cmdMatch[0].length);
+      continue;
     }
-    parts.push(match[0]);
-    lastIndex = match.index + match[0].length;
+    
+    // Try to match superscript/subscript: ^{...} or _{...}
+    const scriptMatch = remaining.match(/^([_^]\{[^}]*?\})/);
+    if (scriptMatch) {
+      tokens.push({ type: 'latex', value: scriptMatch[0] });
+      remaining = remaining.slice(scriptMatch[0].length);
+      continue;
+    }
+    
+    // Try to match single special chars that are part of LaTeX syntax
+    if (/^[{}^_\\]/.test(remaining)) {
+      tokens.push({ type: 'latex', value: remaining[0] });
+      remaining = remaining.slice(1);
+      continue;
+    }
+    
+    // Collect plain text until next LaTeX token
+    let textEnd = 0;
+    while (textEnd < remaining.length && !/[\\{}^_]/.test(remaining[textEnd])) {
+      textEnd++;
+    }
+    if (textEnd > 0) {
+      tokens.push({ type: 'text', value: remaining.slice(0, textEnd) });
+      remaining = remaining.slice(textEnd);
+    }
   }
   
-  // Remaining text after last match
-  if (lastIndex < input.length) {
-    const remaining = input.slice(lastIndex);
-    if (remaining.trim()) {
-      parts.push(`\\text{${remaining}}`);
-    } else if (remaining) {
-      parts.push(`\\text{ }`);
+  // Rebuild: wrap text tokens in \text{}, leave latex tokens as-is
+  return tokens.map(t => {
+    if (t.type === 'text') {
+      // Preserve the text content including spaces
+      return t.value.trim() ? `\\text{${t.value}}` : (t.value ? `\\text{ }` : '');
     }
-  }
-  
-  return parts.join('');
+    return t.value;
+  }).join('');
 }
 
 export function MathRenderer({ latex, displayMode = false, className = '' }: MathRendererProps) {
@@ -78,7 +73,6 @@ export function MathRenderer({ latex, displayMode = false, className = '' }: Mat
       
       if (hasLatex) {
         try {
-          // Wrap plain text segments in \text{} to preserve spacing
           const processed = wrapTextSegments(latex);
           katex.render(processed, containerRef.current, {
             displayMode,

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -28,22 +28,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('user');
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const initializedRef = useRef(false);
 
   const checkAdminRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-    
-    if (!error && data && data.length > 0) {
-      const roles = data.map(r => r.role);
-      const hasSuperAdmin = roles.includes('super_admin');
-      const hasAdmin = roles.includes('admin');
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
       
-      setIsSuperAdmin(hasSuperAdmin);
-      setIsAdmin(hasSuperAdmin || hasAdmin);
-      setUserRole(hasSuperAdmin ? 'super_admin' : hasAdmin ? 'admin' : 'user');
-    } else {
+      if (!error && data && data.length > 0) {
+        const roles = data.map(r => r.role);
+        const hasSuperAdmin = roles.includes('super_admin');
+        const hasAdmin = roles.includes('admin');
+        
+        setIsSuperAdmin(hasSuperAdmin);
+        setIsAdmin(hasSuperAdmin || hasAdmin);
+        setUserRole(hasSuperAdmin ? 'super_admin' : hasAdmin ? 'admin' : 'user');
+      } else {
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setUserRole('user');
+      }
+    } catch {
       setIsAdmin(false);
       setIsSuperAdmin(false);
       setUserRole('user');
@@ -51,54 +58,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkMustChangePassword = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('must_change_password, is_banned, ban_reason')
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (data) {
-      const profile = data as any;
-      if (profile.is_banned) {
-        // Sign out banned users
-        const reason = profile.ban_reason || 'No reason provided';
-        await supabase.auth.signOut();
-        // Store ban message for display
-        sessionStorage.setItem('ban_message', reason);
-        return;
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('must_change_password, is_banned, ban_reason')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (data) {
+        const profile = data as any;
+        if (profile.is_banned) {
+          const reason = profile.ban_reason || 'No reason provided';
+          await supabase.auth.signOut();
+          sessionStorage.setItem('ban_message', reason);
+          return;
+        }
+        setMustChangePassword(!!profile.must_change_password);
       }
-      setMustChangePassword(!!profile.must_change_password);
+    } catch {
+      // ignore
     }
   };
 
   useEffect(() => {
+    // 1. Set up listener FIRST (but don't set loading=false from it on initial)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+      (event, newSession) => {
+        // Skip the INITIAL_SESSION event — getSession handles initialization
+        if (event === 'INITIAL_SESSION') return;
         
-        if (session?.user) {
-          setTimeout(() => {
-            checkAdminRole(session.user.id);
-            checkMustChangePassword(session.user.id);
-          }, 0);
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        
+        if (newSession?.user) {
+          // Fire and forget — don't await inside callback
+          checkAdminRole(newSession.user.id);
+          checkMustChangePassword(newSession.user.id);
         } else {
           setIsAdmin(false);
+          setIsSuperAdmin(false);
+          setUserRole('user');
           setMustChangePassword(false);
         }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    // 2. Then restore session from storage
+    supabase.auth.getSession().then(async ({ data: { session: restoredSession } }) => {
+      if (initializedRef.current) return;
+      initializedRef.current = true;
       
-      if (session?.user) {
-        checkAdminRole(session.user.id);
-        checkMustChangePassword(session.user.id);
+      setSession(restoredSession);
+      setUser(restoredSession?.user ?? null);
+      
+      if (restoredSession?.user) {
+        await Promise.all([
+          checkAdminRole(restoredSession.user.id),
+          checkMustChangePassword(restoredSession.user.id),
+        ]);
       }
+      
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -149,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user_id: data.user.id,
           username,
           display_name: username,
-          phone: phone || null, // stores email from registration
+          phone: phone || null,
           first_name: firstName || null,
           last_name: lastName || null,
           fathers_name: fathersName || null,
