@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      platform_settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           content: string
@@ -238,6 +262,7 @@ export type Database = {
           id: string
           is_public: boolean
           show_results: boolean
+          starts_at: string | null
           test_type: string
           time_limit_minutes: number | null
           title: string
@@ -250,6 +275,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           show_results?: boolean
+          starts_at?: string | null
           test_type?: string
           time_limit_minutes?: number | null
           title: string
@@ -262,6 +288,7 @@ export type Database = {
           id?: string
           is_public?: boolean
           show_results?: boolean
+          starts_at?: string | null
           test_type?: string
           time_limit_minutes?: number | null
           title?: string
