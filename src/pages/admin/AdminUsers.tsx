@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, UserCog, Calendar, Shield, ShieldCheck, Crown, Key, Ban, Trash2, Copy, Check } from 'lucide-react';
+import { Search, UserCog, Calendar, Shield, ShieldCheck, Crown, Key, Ban, Trash2, Copy, Check, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +30,11 @@ interface User {
   avatar_url: string | null;
   created_at: string;
   phone: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  fathers_name: string | null;
+  school: string | null;
+  age: number | null;
   role: 'user' | 'admin' | 'super_admin';
   is_banned?: boolean;
   ban_reason?: string | null;
@@ -43,6 +48,7 @@ export default function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -116,7 +122,6 @@ export default function AdminUsers() {
     if (!selectedUser) return;
     setActionLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke('admin-reset-password', {
         body: { user_id: selectedUser.user_id },
       });
@@ -199,7 +204,10 @@ export default function AdminUsers() {
   const filteredUsers = users.filter(
     (user) =>
       user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.phone?.includes(searchQuery)
   );
 
   const formatDate = (dateString: string) => {
@@ -301,6 +309,10 @@ export default function AdminUsers() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {/* View Details button */}
+                          <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setDetailDialogOpen(true); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           {isSuperAdmin && user.role !== 'super_admin' && (
                             <>
                               <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setTempPassword(''); setResetDialogOpen(true); }}>
@@ -333,6 +345,74 @@ export default function AdminUsers() {
           )}
         </CardContent>
       </Card>
+
+      {/* User Detail Dialog */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+            <DialogDescription>Full profile information for {selectedUser?.display_name || selectedUser?.username}</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={selectedUser.avatar_url || undefined} />
+                  <AvatarFallback className="text-xl">{(selectedUser.display_name || selectedUser.username).slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium text-lg">{selectedUser.display_name || selectedUser.username}</p>
+                  <p className="text-muted-foreground">@{selectedUser.username}</p>
+                  {getRoleBadge(selectedUser.role)}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">First Name</p>
+                  <p className="font-medium">{selectedUser.first_name || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Last Name</p>
+                  <p className="font-medium">{selectedUser.last_name || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Father's Name</p>
+                  <p className="font-medium">{selectedUser.fathers_name || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Age</p>
+                  <p className="font-medium">{selectedUser.age || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">School</p>
+                  <p className="font-medium">{selectedUser.school || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Phone</p>
+                  <p className="font-medium">{selectedUser.phone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Joined</p>
+                  <p className="font-medium">{formatDate(selectedUser.created_at)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <p className="font-medium">{selectedUser.is_banned ? '🚫 Banned' : '✅ Active'}</p>
+                </div>
+                {selectedUser.is_banned && selectedUser.ban_reason && (
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Ban Reason</p>
+                    <p className="font-medium text-destructive">{selectedUser.ban_reason}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* User Management Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

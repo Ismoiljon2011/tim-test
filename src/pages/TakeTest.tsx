@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, ChevronLeft, ChevronRight, AlertCircle, CheckCircle } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -13,14 +13,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
 interface Question {
@@ -41,6 +35,7 @@ interface Test {
   time_limit_minutes: number | null;
   show_results: boolean;
   test_type?: string;
+  starts_at?: string | null;
 }
 
 export default function TakeTest() {
@@ -62,6 +57,8 @@ export default function TakeTest() {
   const [result, setResult] = useState<{ score: number; maxScore: number } | null>(null);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [alreadyTaken, setAlreadyTaken] = useState(false);
+  const [notStartedYet, setNotStartedYet] = useState(false);
+  const [startsAtTime, setStartsAtTime] = useState<string | null>(null);
 
   useEffect(() => {
     if (testId && user) {
@@ -69,7 +66,6 @@ export default function TakeTest() {
     }
   }, [testId, user]);
 
-  // Timer
   useEffect(() => {
     if (!test?.time_limit_minutes || testCompleted) return;
 
@@ -92,7 +88,6 @@ export default function TakeTest() {
     if (!user) return;
 
     try {
-      // Check profile completeness
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -117,12 +112,20 @@ export default function TakeTest() {
     try {
       const { data: testData, error: testError } = await supabase
         .from('tests')
-        .select('id, title, description, time_limit_minutes, show_results, test_type')
+        .select('id, title, description, time_limit_minutes, show_results, test_type, starts_at')
         .eq('id', testId)
         .single();
 
       if (testError) throw testError;
       setTest(testData as Test);
+
+      // Check start time
+      if ((testData as any).starts_at && new Date((testData as any).starts_at) > new Date()) {
+        setNotStartedYet(true);
+        setStartsAtTime((testData as any).starts_at);
+        setLoading(false);
+        return;
+      }
 
       // Check olympiad: already taken?
       if (testData.test_type === 'olympiad' && user) {
@@ -239,7 +242,6 @@ export default function TakeTest() {
     );
   }
 
-  // Profile incomplete - block test
   if (profileIncomplete) {
     return (
       <div className="container py-8">
@@ -257,7 +259,23 @@ export default function TakeTest() {
     );
   }
 
-  // Olympiad already taken
+  if (notStartedYet) {
+    return (
+      <div className="container py-8">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-lg mx-auto text-center">
+          <Card className="p-8">
+            <CalendarClock className="h-16 w-16 text-warning mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2">Test Not Available Yet</h1>
+            <p className="text-muted-foreground mb-6">
+              This test starts at: <strong>{startsAtTime ? new Date(startsAtTime).toLocaleString() : '—'}</strong>
+            </p>
+            <Button onClick={() => navigate('/tests')}>Back to Tests</Button>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (alreadyTaken) {
     return (
       <div className="container py-8">
@@ -280,11 +298,7 @@ export default function TakeTest() {
 
     return (
       <div className="container py-8">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-lg mx-auto text-center"
-        >
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-lg mx-auto text-center">
           <Card className="p-8">
             <div className="mb-6">
               <CheckCircle className="h-16 w-16 text-success mx-auto mb-4" />
@@ -297,20 +311,14 @@ export default function TakeTest() {
                 <div className="text-5xl font-bold">
                   {result.score}/{result.maxScore} <span className="text-2xl font-medium text-muted-foreground">points</span>
                 </div>
-                <div className="text-2xl text-muted-foreground">
-                  {percentage.toFixed(0)}%
-                </div>
+                <div className="text-2xl text-muted-foreground">{percentage.toFixed(0)}%</div>
                 <Progress value={percentage} className="h-3" />
               </div>
             )}
 
             <div className="flex gap-4 justify-center">
-              <Button variant="outline" onClick={() => navigate('/tests')}>
-                Back to Tests
-              </Button>
-              <Button onClick={() => navigate('/dashboard')}>
-                Go to Dashboard
-              </Button>
+              <Button variant="outline" onClick={() => navigate('/tests')}>Back to Tests</Button>
+              <Button onClick={() => navigate('/dashboard')}>Go to Dashboard</Button>
             </div>
           </Card>
         </motion.div>
@@ -320,32 +328,20 @@ export default function TakeTest() {
 
   return (
     <div className="container py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-3xl mx-auto"
-      >
-        {/* Header */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">{test?.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              Question {currentQuestionIndex + 1} of {questions.length}
-            </p>
+            <p className="text-sm text-muted-foreground">Question {currentQuestionIndex + 1} of {questions.length}</p>
           </div>
           {timeRemaining !== null && (
-            <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                timeRemaining < 60 ? 'bg-destructive/10 text-destructive' : 'bg-muted'
-              }`}
-            >
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${timeRemaining < 60 ? 'bg-destructive/10 text-destructive' : 'bg-muted'}`}>
               <Clock className="h-4 w-4" />
               <span className="font-mono font-medium">{formatTime(timeRemaining)}</span>
             </div>
           )}
         </div>
 
-        {/* Progress */}
         <div className="mb-6">
           <Progress value={progress} className="h-2" />
           <div className="flex justify-between mt-2 text-sm text-muted-foreground">
@@ -354,7 +350,6 @@ export default function TakeTest() {
           </div>
         </div>
 
-        {/* Question */}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentQuestionIndex}
@@ -372,16 +367,10 @@ export default function TakeTest() {
                     </span>
                     <div className="flex-1">
                       {currentQuestion?.question_text && (
-                        <div className="mb-4">
-                          <MathRenderer latex={currentQuestion.question_text} />
-                        </div>
+                        <div className="mb-4"><MathRenderer latex={currentQuestion.question_text} /></div>
                       )}
                       {currentQuestion?.question_image_url && (
-                        <img
-                          src={currentQuestion.question_image_url}
-                          alt="Question"
-                          className="max-w-full rounded-lg mt-4"
-                        />
+                        <img src={currentQuestion.question_image_url} alt="Question" className="max-w-full rounded-lg mt-4" />
                       )}
                     </div>
                   </div>
@@ -399,15 +388,11 @@ export default function TakeTest() {
                         key={index}
                         htmlFor={`option-${index}`}
                         className={`flex items-center space-x-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                          answers[currentQuestion.id] === option
-                            ? 'bg-primary/10 border-primary'
-                            : 'hover:bg-muted/50'
+                          answers[currentQuestion.id] === option ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'
                         }`}
                       >
                         <RadioGroupItem value={option} id={`option-${index}`} />
-                        <span className="flex-1">
-                          <MathRenderer latex={option} />
-                        </span>
+                        <span className="flex-1"><MathRenderer latex={option} /></span>
                       </label>
                     ))}
                   </RadioGroup>
@@ -424,15 +409,9 @@ export default function TakeTest() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation */}
         <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
-            disabled={currentQuestionIndex === 0}
-          >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Previous
+          <Button variant="outline" onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))} disabled={currentQuestionIndex === 0}>
+            <ChevronLeft className="h-4 w-4 mr-2" /> Previous
           </Button>
 
           <div className="flex gap-2 flex-wrap justify-center">
@@ -454,26 +433,19 @@ export default function TakeTest() {
           </div>
 
           {currentQuestionIndex === questions.length - 1 ? (
-            <Button onClick={() => setShowSubmitDialog(true)} disabled={submitting}>
-              Submit Test
-            </Button>
+            <Button onClick={() => setShowSubmitDialog(true)} disabled={submitting}>Submit Test</Button>
           ) : (
-            <Button
-              onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
-            >
-              Next
-              <ChevronRight className="h-4 w-4 ml-2" />
+            <Button onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}>
+              Next <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           )}
         </div>
 
-        {/* Submit Dialog */}
         <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" />
-                Submit Test?
+                <AlertCircle className="h-5 w-5" /> Submit Test?
               </AlertDialogTitle>
               <AlertDialogDescription>
                 You have answered {answeredCount} out of {questions.length} questions.
@@ -488,7 +460,7 @@ export default function TakeTest() {
             <AlertDialogFooter>
               <AlertDialogCancel>Continue Test</AlertDialogCancel>
               <AlertDialogAction onClick={handleSubmit} disabled={submitting}>
-                {submitting ? 'Submitting...' : 'Submit Test'}
+                {submitting ? 'Submitting...' : 'Submit'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
