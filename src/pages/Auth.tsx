@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Lock, User, ArrowRight, Mail, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { Loader2, Lock, User, ArrowRight, Phone, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,15 +12,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const signInSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
+const phoneRegex = /^\+998\d{9}$/;
+
 const signUpSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be less than 20 characters'),
-  email: z.string().email('Please enter a valid email address'),
+  phone: z.string().regex(phoneRegex, 'Please enter a valid Uzbekistan phone number (+998XXXXXXXXX)'),
   firstName: z.string().min(1, 'First name is required').max(50),
   lastName: z.string().min(1, 'Last name is required').max(50),
   fathersName: z.string().min(1, "Father's name is required").max(50),
@@ -36,7 +39,7 @@ const signUpSchema = z.object({
 type SignInFormData = z.infer<typeof signInSchema>;
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
-const usernameToEmail = (username: string) => `${username.toLowerCase()}@testplatform.internal`;
+const usernameToEmail = (username: string) => `${username.toLowerCase().trim()}@testplatform.internal`;
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -46,16 +49,17 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
+  const [banMessage, setBanMessage] = useState<string | null>(null);
 
-  // Sync isSignUp with URL search params
   useEffect(() => {
     setIsSignUp(searchParams.get('mode') === 'signup');
   }, [searchParams]);
 
-  // Check for ban message
-  const banMessage = sessionStorage.getItem('ban_message');
+  // Check for ban message from session storage (set by AuthContext)
   useEffect(() => {
-    if (banMessage) {
+    const storedBan = sessionStorage.getItem('ban_message');
+    if (storedBan) {
+      setBanMessage(storedBan);
       sessionStorage.removeItem('ban_message');
     }
   }, []);
@@ -73,23 +77,47 @@ export default function Auth() {
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { username: '', email: '', firstName: '', lastName: '', fathersName: '', school: '', age: '', password: '', confirmPassword: '' },
+    defaultValues: { username: '', phone: '+998', firstName: '', lastName: '', fathersName: '', school: '', age: '', password: '', confirmPassword: '' },
   });
 
   const handleSignIn = async (data: SignInFormData) => {
     setIsLoading(true);
-    const email = usernameToEmail(data.username);
+    setBanMessage(null);
+    const trimmedUsername = data.username.trim();
+    const email = usernameToEmail(trimmedUsername);
+
+    // First check if user is banned by looking up their profile
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('is_banned, ban_reason, user_id')
+      .eq('username', trimmedUsername)
+      .maybeSingle();
+
+    if (profiles && profiles.is_banned) {
+      setIsLoading(false);
+      const reason = (profiles as any).ban_reason || 'No reason provided';
+      setBanMessage(reason);
+      toast({
+        variant: 'destructive',
+        title: t('auth.accountBanned') || 'Account Banned',
+        description: `${t('auth.banReason') || 'Reason'}: ${reason}`,
+      });
+      return;
+    }
+
     const { error } = await signIn(email, data.password);
     setIsLoading(false);
 
     if (error) {
-      const banMsg = sessionStorage.getItem('ban_message');
-      if (banMsg) {
+      // Check session storage for ban message (might be set by AuthContext during sign-in)
+      const storedBan = sessionStorage.getItem('ban_message');
+      if (storedBan) {
         sessionStorage.removeItem('ban_message');
+        setBanMessage(storedBan);
         toast({
           variant: 'destructive',
-          title: 'Account Banned',
-          description: `This account has been banned by the administrator. Reason: ${banMsg}`,
+          title: t('auth.accountBanned') || 'Account Banned',
+          description: `${t('auth.banReason') || 'Reason'}: ${storedBan}`,
         });
         return;
       }
@@ -108,11 +136,11 @@ export default function Auth() {
 
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
-    const email = usernameToEmail(data.username);
-    const internalEmail = usernameToEmail(data.username);
+    const trimmedUsername = data.username.trim();
+    const internalEmail = usernameToEmail(trimmedUsername);
     const { error } = await signUp(
-      internalEmail, data.password, data.username, data.email,
-      data.firstName, data.lastName, data.fathersName, data.school, parseInt(data.age)
+      internalEmail, data.password, trimmedUsername, data.phone.trim(),
+      data.firstName.trim(), data.lastName.trim(), data.fathersName.trim(), data.school.trim(), parseInt(data.age)
     );
     setIsLoading(false);
 
@@ -142,8 +170,8 @@ export default function Auth() {
             <CardContent className="py-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-destructive">Account Banned</p>
-                <p className="text-sm text-muted-foreground mt-1">Reason: {banMessage}</p>
+                <p className="font-medium text-destructive">{t('auth.accountBanned') || 'Account Banned'}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t('auth.banReason') || 'Reason'}: {banMessage}</p>
               </div>
             </CardContent>
           </Card>
@@ -202,12 +230,13 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-email">Email *</Label>
+                  <Label htmlFor="signup-phone">{t('auth.phone') || 'Phone Number'} *</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="signup-email" type="email" placeholder="example@mail.com" className="pl-10" {...signUpForm.register('email')} />
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input id="signup-phone" type="tel" placeholder="+998901234567" className="pl-10" {...signUpForm.register('phone')} />
                   </div>
-                  {signUpForm.formState.errors.email && <p className="text-xs text-destructive">{signUpForm.formState.errors.email.message}</p>}
+                  <p className="text-xs text-muted-foreground">{t('auth.phoneHint')}</p>
+                  {signUpForm.formState.errors.phone && <p className="text-xs text-destructive">{signUpForm.formState.errors.phone.message}</p>}
                 </div>
 
                 <div className="space-y-1.5">

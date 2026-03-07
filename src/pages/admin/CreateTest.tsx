@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Trash2, GripVertical, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,9 @@ import { MathEditor, MathRenderer } from '@/components/math/MathRenderer';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 interface QuestionForm {
   id: string;
@@ -47,12 +50,20 @@ export default function CreateTest() {
   const [testType, setTestType] = useState<'practice' | 'olympiad'>('practice');
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | null>(null);
   const [showResults, setShowResults] = useState(true);
+  const [startsAt, setStartsAt] = useState<string>('');
   const [questions, setQuestions] = useState<QuestionForm[]>([createEmptyQuestion()]);
   const [saving, setSaving] = useState(false);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [loadingTest, setLoadingTest] = useState(false);
 
-  // Load test data when editing
+  // Generator state
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [genSubject, setGenSubject] = useState<'math' | 'english'>('math');
+  const [genMethod, setGenMethod] = useState<'template' | 'ai'>('template');
+  const [genCount, setGenCount] = useState(5);
+  const [genDifficulty, setGenDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
+  const [generating, setGenerating] = useState(false);
+
   useEffect(() => {
     if (isEditing && testId) {
       loadTestData(testId);
@@ -76,6 +87,7 @@ export default function CreateTest() {
       setTestType((testData as any).test_type || 'practice');
       setTimeLimitMinutes(testData.time_limit_minutes);
       setShowResults(testData.show_results);
+      setStartsAt((testData as any).starts_at ? new Date((testData as any).starts_at).toISOString().slice(0, 16) : '');
 
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
@@ -162,10 +174,7 @@ export default function CreateTest() {
 
       const { error: uploadError } = await supabase.storage
         .from('question-images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
 
@@ -176,12 +185,7 @@ export default function CreateTest() {
       updateQuestion(questionIndex, { question_image_url: urlData.publicUrl });
       toast({ title: 'Image uploaded', description: 'The image has been added to the question.' });
     } catch (error: any) {
-      console.error('Error uploading image:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Upload failed',
-        description: error?.message || 'Could not upload the image. Please try again.',
-      });
+      toast({ variant: 'destructive', title: 'Upload failed', description: error?.message || 'Could not upload the image.' });
     }
   };
 
@@ -206,23 +210,24 @@ export default function CreateTest() {
     setSaving(true);
 
     try {
+      const testPayload: any = {
+        title: title.trim(),
+        description: description.trim() || null,
+        is_public: isPublic,
+        time_limit_minutes: timeLimitMinutes,
+        show_results: showResults,
+        test_type: testType,
+        starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+      };
+
       if (isEditing && testId) {
-        // Update existing test
         const { error: testError } = await supabase
           .from('tests')
-          .update({
-            title: title.trim(),
-            description: description.trim() || null,
-            is_public: isPublic,
-            time_limit_minutes: timeLimitMinutes,
-            show_results: showResults,
-            test_type: testType,
-          } as any)
+          .update(testPayload)
           .eq('id', testId);
 
         if (testError) throw testError;
 
-        // Delete existing questions then re-insert
         await supabase.from('questions').delete().eq('test_id', testId);
 
         const questionsToInsert = questions.map((q, index) => ({
@@ -241,18 +246,10 @@ export default function CreateTest() {
 
         toast({ title: 'Test updated!', description: 'Your test has been saved successfully.' });
       } else {
-        // Create new test
+        testPayload.created_by = user.id;
         const { data: testData, error: testError } = await supabase
           .from('tests')
-          .insert({
-            title: title.trim(),
-            description: description.trim() || null,
-            is_public: isPublic,
-            time_limit_minutes: timeLimitMinutes,
-            show_results: showResults,
-            created_by: user.id,
-            test_type: testType,
-          } as any)
+          .insert(testPayload)
           .select()
           .single();
 
@@ -281,6 +278,169 @@ export default function CreateTest() {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not save the test. Please try again.' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Template-based question generation
+  const generateTemplateQuestions = (subject: 'math' | 'english', count: number, difficulty: 'easy' | 'medium' | 'hard'): QuestionForm[] => {
+    const generated: QuestionForm[] = [];
+
+    if (subject === 'math') {
+      for (let i = 0; i < count; i++) {
+        const q = createEmptyQuestion();
+        let a: number, b: number, answer: number, text: string;
+        const ops = difficulty === 'easy' ? ['+', '-'] : difficulty === 'medium' ? ['+', '-', '×'] : ['+', '-', '×', '÷'];
+        const op = ops[Math.floor(Math.random() * ops.length)];
+        const range = difficulty === 'easy' ? 20 : difficulty === 'medium' ? 100 : 1000;
+
+        switch (op) {
+          case '+':
+            a = Math.floor(Math.random() * range) + 1;
+            b = Math.floor(Math.random() * range) + 1;
+            answer = a + b;
+            text = `${a} + ${b} = ?`;
+            break;
+          case '-':
+            a = Math.floor(Math.random() * range) + 1;
+            b = Math.floor(Math.random() * a) + 1;
+            answer = a - b;
+            text = `${a} - ${b} = ?`;
+            break;
+          case '×':
+            a = Math.floor(Math.random() * Math.sqrt(range)) + 1;
+            b = Math.floor(Math.random() * Math.sqrt(range)) + 1;
+            answer = a * b;
+            text = `${a} \\times ${b} = ?`;
+            break;
+          case '÷':
+          default:
+            b = Math.floor(Math.random() * 12) + 2;
+            answer = Math.floor(Math.random() * 12) + 1;
+            a = b * answer;
+            text = `${a} \\div ${b} = ?`;
+            break;
+        }
+
+        // Generate wrong options
+        const wrongSet = new Set<number>();
+        while (wrongSet.size < 3) {
+          const wrong = answer + (Math.floor(Math.random() * 10) - 5);
+          if (wrong !== answer && wrong >= 0) wrongSet.add(wrong);
+        }
+        const wrongs = Array.from(wrongSet);
+        const allOptions = [answer.toString(), ...wrongs.map(String)].sort(() => Math.random() - 0.5);
+
+        q.question_text = text;
+        q.options = allOptions;
+        q.correct_answer = answer.toString();
+        q.question_type = 'multiple_choice';
+        generated.push(q);
+      }
+    } else {
+      // English
+      const easyWords = [
+        { word: 'apple', options: ['A fruit', 'A car', 'A color', 'A number'] },
+        { word: 'book', options: ['Something to read', 'A drink', 'A tool', 'A sport'] },
+        { word: 'cat', options: ['An animal', 'A plant', 'A building', 'A machine'] },
+        { word: 'dog', options: ['A pet animal', 'A fish', 'A bird', 'An insect'] },
+        { word: 'house', options: ['A building to live in', 'A type of food', 'A vehicle', 'A musical instrument'] },
+        { word: 'water', options: ['A liquid we drink', 'A solid material', 'A gas', 'A type of metal'] },
+        { word: 'sun', options: ['A star', 'A planet', 'A moon', 'An asteroid'] },
+        { word: 'tree', options: ['A plant', 'An animal', 'A mineral', 'A liquid'] },
+      ];
+
+      const mediumSentences = [
+        { q: 'She ___ to school every day.', options: ['goes', 'go', 'going', 'gone'], answer: 'goes' },
+        { q: 'They ___ playing football now.', options: ['are', 'is', 'was', 'be'], answer: 'are' },
+        { q: 'I ___ a new book yesterday.', options: ['bought', 'buy', 'buying', 'buys'], answer: 'bought' },
+        { q: 'He ___ already finished his homework.', options: ['has', 'have', 'had', 'having'], answer: 'has' },
+        { q: 'We will ___ to the park tomorrow.', options: ['go', 'goes', 'going', 'went'], answer: 'go' },
+        { q: 'The children ___ in the garden.', options: ['are playing', 'is playing', 'was playing', 'plays'], answer: 'are playing' },
+        { q: 'She ___ English very well.', options: ['speaks', 'speak', 'speaking', 'spoke'], answer: 'speaks' },
+        { q: 'If it rains, I ___ stay home.', options: ['will', 'would', 'shall', 'should'], answer: 'will' },
+      ];
+
+      const pool = difficulty === 'easy' ? easyWords : mediumSentences;
+
+      for (let i = 0; i < Math.min(count, pool.length); i++) {
+        const q = createEmptyQuestion();
+        const item = pool[i % pool.length];
+
+        if (difficulty === 'easy') {
+          const w = item as typeof easyWords[0];
+          q.question_text = `What is "${w.word}"?`;
+          q.options = w.options;
+          q.correct_answer = w.options[0];
+        } else {
+          const s = item as typeof mediumSentences[0];
+          q.question_text = s.q;
+          q.options = s.options;
+          q.correct_answer = s.answer;
+        }
+        q.question_type = 'multiple_choice';
+        generated.push(q);
+      }
+
+      // If need more than pool size, repeat with randomization
+      while (generated.length < count) {
+        const item = pool[Math.floor(Math.random() * pool.length)];
+        const q = createEmptyQuestion();
+        if (difficulty === 'easy') {
+          const w = item as typeof easyWords[0];
+          q.question_text = `What is "${w.word}"?`;
+          q.options = w.options;
+          q.correct_answer = w.options[0];
+        } else {
+          const s = item as typeof mediumSentences[0];
+          q.question_text = s.q;
+          q.options = s.options;
+          q.correct_answer = s.answer;
+        }
+        q.question_type = 'multiple_choice';
+        generated.push(q);
+      }
+    }
+
+    return generated;
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+
+    try {
+      if (genMethod === 'template') {
+        const generated = generateTemplateQuestions(genSubject, genCount, genDifficulty);
+        setQuestions(prev => [...prev, ...generated]);
+        setActiveQuestionIndex(questions.length);
+        toast({ title: 'Generated!', description: `${generated.length} questions added.` });
+      } else {
+        // AI generation via edge function
+        const res = await supabase.functions.invoke('generate-questions', {
+          body: { subject: genSubject, count: genCount, difficulty: genDifficulty },
+        });
+
+        if (res.error) throw res.error;
+        if (res.data?.error) throw new Error(res.data.error);
+
+        const aiQuestions: QuestionForm[] = (res.data.questions || []).map((q: any) => ({
+          id: crypto.randomUUID(),
+          question_text: q.question_text || '',
+          question_image_url: '',
+          question_type: 'multiple_choice',
+          options: q.options || ['', '', '', ''],
+          correct_answer: q.correct_answer || '',
+          points: 1,
+        }));
+
+        setQuestions(prev => [...prev, ...aiQuestions]);
+        setActiveQuestionIndex(questions.length);
+        toast({ title: 'Generated!', description: `${aiQuestions.length} AI questions added.` });
+      }
+      setGeneratorOpen(false);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Generation failed', description: error.message || 'Could not generate questions.' });
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -335,29 +495,16 @@ export default function CreateTest() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter test title..."
-                />
+                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Enter test title..." />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter test description..."
-                  rows={3}
-                />
+                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Enter test description..." rows={3} />
               </div>
               <div className="space-y-2">
                 <Label>Test Type</Label>
                 <Select value={testType} onValueChange={(v: 'practice' | 'olympiad') => setTestType(v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="practice">📝 Practice (multiple attempts)</SelectItem>
                     <SelectItem value="olympiad">🏆 Olympiad (one attempt only)</SelectItem>
@@ -366,14 +513,12 @@ export default function CreateTest() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="timeLimit">Time Limit (minutes)</Label>
-                <Input
-                  id="timeLimit"
-                  type="number"
-                  min={1}
-                  value={timeLimitMinutes || ''}
-                  onChange={(e) => setTimeLimitMinutes(e.target.value ? parseInt(e.target.value) : null)}
-                  placeholder="No limit"
-                />
+                <Input id="timeLimit" type="number" min={1} value={timeLimitMinutes || ''} onChange={(e) => setTimeLimitMinutes(e.target.value ? parseInt(e.target.value) : null)} placeholder="No limit" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="startsAt">Start Time (optional)</Label>
+                <Input id="startsAt" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Users can see the test but can only start it after this time.</p>
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="isPublic">Public Test</Label>
@@ -391,10 +536,16 @@ export default function CreateTest() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Questions</CardTitle>
-                <Button size="sm" onClick={addQuestion}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setGeneratorOpen(true)}>
+                    <Wand2 className="h-4 w-4 mr-1" />
+                    Generate
+                  </Button>
+                  <Button size="sm" onClick={addQuestion}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -418,15 +569,7 @@ export default function CreateTest() {
                       )}
                     </span>
                     {questions.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeQuestion(index);
-                        }}
-                      >
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); removeQuestion(index); }}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     )}
@@ -460,9 +603,7 @@ export default function CreateTest() {
                       updateQuestion(activeQuestionIndex, { question_type: value })
                     }
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
                       <SelectItem value="text_input">Text Input</SelectItem>
@@ -485,17 +626,8 @@ export default function CreateTest() {
                   <Label>Question Image (optional — upload, drag, or paste from clipboard)</Label>
                   {activeQuestion.question_image_url ? (
                     <div className="relative">
-                      <img
-                        src={activeQuestion.question_image_url}
-                        alt="Question"
-                        className="max-h-48 rounded-lg border"
-                      />
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        onClick={() => updateQuestion(activeQuestionIndex, { question_image_url: '' })}
-                      >
+                      <img src={activeQuestion.question_image_url} alt="Question" className="max-h-48 rounded-lg border" />
+                      <Button variant="destructive" size="icon" className="absolute top-2 right-2" onClick={() => updateQuestion(activeQuestionIndex, { question_image_url: '' })}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -506,21 +638,11 @@ export default function CreateTest() {
                       onDrop={(e) => {
                         e.preventDefault();
                         const file = e.dataTransfer.files?.[0];
-                        if (file && file.type.startsWith('image/')) {
-                          handleImageUpload(activeQuestionIndex, file);
-                        }
+                        if (file && file.type.startsWith('image/')) handleImageUpload(activeQuestionIndex, file);
                       }}
                       tabIndex={0}
                     >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(activeQuestionIndex, file);
-                        }}
-                      />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleImageUpload(activeQuestionIndex, file); }} />
                       <Upload className="h-6 w-6 text-muted-foreground" />
                       <span className="text-muted-foreground text-sm text-center">Click to upload, drag & drop, or paste from clipboard (Ctrl+V)</span>
                     </label>
@@ -534,8 +656,7 @@ export default function CreateTest() {
                       <Label>Options (math symbols supported)</Label>
                       {activeQuestion.options.length < 6 && (
                         <Button variant="outline" size="sm" onClick={() => addOption(activeQuestionIndex)}>
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add Option
+                          <Plus className="h-3 w-3 mr-1" /> Add Option
                         </Button>
                       )}
                     </div>
@@ -545,12 +666,7 @@ export default function CreateTest() {
                           <div className="flex items-center justify-between mb-1">
                             <Label className="text-xs text-muted-foreground">Option {optionIndex + 1}</Label>
                             {activeQuestion.options.length > 2 && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => removeOption(activeQuestionIndex, optionIndex)}
-                              >
+                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeOption(activeQuestionIndex, optionIndex)}>
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             )}
@@ -573,29 +689,21 @@ export default function CreateTest() {
                   {activeQuestion.question_type === 'multiple_choice' ? (
                     <Select
                       value={activeQuestion.correct_answer}
-                      onValueChange={(value) =>
-                        updateQuestion(activeQuestionIndex, { correct_answer: value })
-                      }
+                      onValueChange={(value) => updateQuestion(activeQuestionIndex, { correct_answer: value })}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select correct answer" />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select correct answer" /></SelectTrigger>
                       <SelectContent>
                         {activeQuestion.options
                           .filter((o) => o.trim())
                           .map((option, index) => (
-                            <SelectItem key={index} value={option}>
-                              {option}
-                            </SelectItem>
+                            <SelectItem key={index} value={option}>{option}</SelectItem>
                           ))}
                       </SelectContent>
                     </Select>
                   ) : (
                     <Input
                       value={activeQuestion.correct_answer}
-                      onChange={(e) =>
-                        updateQuestion(activeQuestionIndex, { correct_answer: e.target.value })
-                      }
+                      onChange={(e) => updateQuestion(activeQuestionIndex, { correct_answer: e.target.value })}
                       placeholder="Enter the correct answer..."
                     />
                   )}
@@ -608,9 +716,7 @@ export default function CreateTest() {
                     type="number"
                     min={1}
                     value={activeQuestion.points}
-                    onChange={(e) =>
-                      updateQuestion(activeQuestionIndex, { points: parseInt(e.target.value) || 1 })
-                    }
+                    onChange={(e) => updateQuestion(activeQuestionIndex, { points: parseInt(e.target.value) || 1 })}
                   />
                 </div>
               </CardContent>
@@ -619,15 +725,69 @@ export default function CreateTest() {
 
           {/* Save button */}
           <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={() => navigate('/admin/tests')}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => navigate('/admin/tests')}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Saving...' : isEditing ? 'Update Test' : 'Save Test'}
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Question Generator Dialog */}
+      <Dialog open={generatorOpen} onOpenChange={setGeneratorOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5" />
+              Question Generator
+            </DialogTitle>
+            <DialogDescription>Generate questions automatically using templates or AI</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Select value={genSubject} onValueChange={(v: 'math' | 'english') => setGenSubject(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="math">📐 Mathematics</SelectItem>
+                  <SelectItem value="english">📖 English</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Method</Label>
+              <Select value={genMethod} onValueChange={(v: 'template' | 'ai') => setGenMethod(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="template">📋 Template (instant, predictable)</SelectItem>
+                  <SelectItem value="ai">🤖 AI Generated (diverse, slower)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Number of Questions</Label>
+              <Input type="number" min={1} max={50} value={genCount} onChange={(e) => setGenCount(parseInt(e.target.value) || 5)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty</Label>
+              <Select value={genDifficulty} onValueChange={(v: 'easy' | 'medium' | 'hard') => setGenDifficulty(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy">🟢 Easy</SelectItem>
+                  <SelectItem value="medium">🟡 Medium</SelectItem>
+                  <SelectItem value="hard">🔴 Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGeneratorOpen(false)}>Cancel</Button>
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? 'Generating...' : 'Generate Questions'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

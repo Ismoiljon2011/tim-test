@@ -6,14 +6,56 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Lock, User, Camera, Save, Crop } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, Camera, Save, Crop, HeadphonesIcon } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import Cropper from 'react-easy-crop';
+import { Slider } from '@/components/ui/slider';
+
+interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const createImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
+
+async function getCroppedImg(imageSrc: string, pixelCrop: CropArea, rotation = 0): Promise<Blob> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+
+  const size = 256;
+  canvas.width = size;
+  canvas.height = size;
+
+  // Rotate
+  ctx.translate(size / 2, size / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.translate(-size / 2, -size / 2);
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
+    0, 0, size, size
+  );
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.85);
+  });
+}
 
 const Profile = () => {
   const { user } = useAuth();
@@ -43,11 +85,11 @@ const Profile = () => {
 
   // Image crop dialog
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [cropSize, setCropSize] = useState([80]);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState([1]);
+  const [rotation, setRotation] = useState([0]);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
 
   const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],
@@ -60,6 +102,19 @@ const Profile = () => {
       return data;
     },
     enabled: !!user,
+  });
+
+  // Support URL
+  const { data: supportUrl } = useQuery({
+    queryKey: ['platform_settings', 'support_url'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('platform_settings' as any)
+        .select('value')
+        .eq('key', 'support_url')
+        .maybeSingle();
+      return (data as any)?.value || null;
+    },
   });
 
   // Load profile data into form
@@ -102,47 +157,26 @@ const Profile = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSelectedFile(file);
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
-    setCropSize([80]);
+    setCrop({ x: 0, y: 0 });
+    setZoom([1]);
+    setRotation([0]);
+    setCroppedAreaPixels(null);
     setCropDialogOpen(true);
-    // Reset input so same file can be selected again
     e.target.value = '';
   };
 
+  const onCropComplete = useCallback((_: any, croppedPixels: CropArea) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
+
   const processAndUploadAvatar = async () => {
-    if (!selectedFile || !user) return;
+    if (!previewUrl || !croppedAreaPixels || !user) return;
     setUploadingAvatar(true);
 
     try {
-      // Create resized/cropped image
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
-      const img = new Image();
-
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = reject;
-        img.src = URL.createObjectURL(selectedFile);
-      });
-
-      const size = 256; // Output size
-      canvas.width = size;
-      canvas.height = size;
-
-      // Center crop
-      const scale = cropSize[0] / 100;
-      const srcSize = Math.min(img.width, img.height) * scale;
-      const sx = (img.width - srcSize) / 2;
-      const sy = (img.height - srcSize) / 2;
-
-      ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, size, size);
-
-      const blob = await new Promise<Blob>((resolve) =>
-        canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.85)
-      );
-
+      const blob = await getCroppedImg(previewUrl, croppedAreaPixels, rotation[0]);
       const filePath = `${user.id}/avatar.jpg`;
 
       const { error: uploadError } = await supabase.storage
@@ -152,7 +186,6 @@ const Profile = () => {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      // Append timestamp to bust cache
       const avatarUrlWithCache = `${urlData.publicUrl}?t=${Date.now()}`;
 
       const { error: updateError } = await supabase
@@ -165,7 +198,6 @@ const Profile = () => {
       toast({ title: 'Success', description: 'Avatar updated.' });
       queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
       setCropDialogOpen(false);
-      setSelectedFile(null);
       setPreviewUrl(null);
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -192,7 +224,6 @@ const Profile = () => {
 
     setLoading(true);
 
-    // Verify current password by attempting sign in
     const email = user?.email;
     if (email) {
       const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
@@ -224,10 +255,20 @@ const Profile = () => {
       {/* Profile Info */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            {t('nav.profile')}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              {t('nav.profile')}
+            </CardTitle>
+            {supportUrl && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={supportUrl} target="_blank" rel="noopener noreferrer">
+                  <HeadphonesIcon className="h-4 w-4 mr-2" />
+                  {t('profile.support') || 'Support'}
+                </a>
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Avatar */}
@@ -276,7 +317,7 @@ const Profile = () => {
               <Input type="number" min={1} max={100} value={age} onChange={(e) => setAge(e.target.value)} placeholder="Enter age" />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
+              <Label>{t('auth.phone') || 'Phone'} *</Label>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 XX XXX XX XX" />
             </div>
           </div>
@@ -357,8 +398,8 @@ const Profile = () => {
       </Card>
 
       {/* Avatar Crop Dialog */}
-      <Dialog open={cropDialogOpen} onOpenChange={(open) => { setCropDialogOpen(open); if (!open) { setSelectedFile(null); setPreviewUrl(null); } }}>
-        <DialogContent className="max-w-sm">
+      <Dialog open={cropDialogOpen} onOpenChange={(open) => { setCropDialogOpen(open); if (!open) setPreviewUrl(null); }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Crop className="h-5 w-5" />
@@ -367,27 +408,43 @@ const Profile = () => {
           </DialogHeader>
           <div className="space-y-4">
             {previewUrl && (
-              <div className="flex justify-center">
-                <div className="w-48 h-48 rounded-full overflow-hidden border-2 border-primary">
-                  <img
-                    ref={imgRef}
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    style={{ transform: `scale(${100 / cropSize[0]})` }}
-                  />
-                </div>
+              <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden">
+                <Cropper
+                  image={previewUrl}
+                  crop={crop}
+                  zoom={zoom[0]}
+                  rotation={rotation[0]}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onCropComplete={onCropComplete}
+                  onZoomChange={(z) => setZoom([z])}
+                  onRotationChange={(r) => setRotation([r])}
+                />
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Zoom</Label>
-              <Slider
-                value={cropSize}
-                onValueChange={setCropSize}
-                min={30}
-                max={100}
-                step={1}
-              />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label className="text-sm">Zoom</Label>
+                <Slider
+                  value={zoom}
+                  onValueChange={setZoom}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Rotate</Label>
+                <Slider
+                  value={rotation}
+                  onValueChange={setRotation}
+                  min={0}
+                  max={360}
+                  step={1}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
