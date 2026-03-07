@@ -201,6 +201,14 @@ export const translations: Translations = {
   'posts.noPosts': { uz: 'Hozircha postlar yo\'q', en: 'No posts yet', ru: 'Пока нет публикаций' },
   'posts.createFirst': { uz: 'Birinchi postingizni yarating', en: 'Create your first post', ru: 'Создайте первую публикацию' },
   'posts.latestNews': { uz: 'So\'nggi yangiliklar', en: 'Latest News', ru: 'Последние новости' },
+  
+  // Auth extras
+  'auth.phone': { uz: 'Telefon raqami', en: 'Phone Number', ru: 'Номер телефона' },
+  'auth.accountBanned': { uz: 'Hisob bloklangan', en: 'Account Banned', ru: 'Аккаунт заблокирован' },
+  'auth.banReason': { uz: 'Sabab', en: 'Reason', ru: 'Причина' },
+  
+  // Profile extras
+  'profile.support': { uz: 'Yordam', en: 'Support', ru: 'Поддержка' },
 };
 
 interface LanguageContextType {
