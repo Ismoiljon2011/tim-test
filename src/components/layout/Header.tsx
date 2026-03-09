@@ -118,6 +118,22 @@ export function Header() {
             {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
 
+          {/* Support button */}
+          {supportUrl && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full" asChild>
+                    <a href={supportUrl} target="_blank" rel="noopener noreferrer">
+                      <Headphones className="h-5 w-5" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Support</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           {user ? (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
