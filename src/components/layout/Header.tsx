@@ -36,6 +36,19 @@ export function Header() {
 
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [supportUrl, setSupportUrl] = useState<string | null>(null);
+
+  // Fetch support URL
+  useEffect(() => {
+    supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'support_url')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setSupportUrl(data.value);
+      });
+  }, []);
 
   useEffect(() => {
     if (user) {
