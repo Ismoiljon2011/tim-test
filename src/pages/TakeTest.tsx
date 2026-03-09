@@ -75,7 +75,10 @@ export default function TakeTest() {
       
       if (remaining <= 0) {
         setTimeRemaining(0);
+        clearInterval(interval);
+        // Auto-submit the test when time runs out
         handleSubmit();
+        return;
       } else {
         setTimeRemaining(remaining);
       }
