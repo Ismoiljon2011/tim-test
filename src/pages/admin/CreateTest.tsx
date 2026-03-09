@@ -281,55 +281,111 @@ export default function CreateTest() {
     }
   };
 
+  // Shuffle array helper
+  const shuffleArray = <T,>(arr: T[]): T[] => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
   // Template-based question generation
   const generateTemplateQuestions = (subject: 'math' | 'english', count: number, difficulty: 'easy' | 'medium' | 'hard'): QuestionForm[] => {
     const generated: QuestionForm[] = [];
+    const usedKeys = new Set<string>();
 
     if (subject === 'math') {
-      for (let i = 0; i < count; i++) {
-        const q = createEmptyQuestion();
-        let a: number, b: number, answer: number, text: string;
-        const ops = difficulty === 'easy' ? ['+', '-'] : difficulty === 'medium' ? ['+', '-', '×'] : ['+', '-', '×', '÷'];
+      // Difficulty tuned for 4th-5th grade students
+      const ops = difficulty === 'easy'
+        ? ['+', '-']
+        : difficulty === 'medium'
+        ? ['+', '-', '×', '÷']
+        : ['+', '-', '×', '÷', 'frac', 'pow'];
+
+      const ranges = {
+        easy: { add: 100, mul: 12 },
+        medium: { add: 500, mul: 20 },
+        hard: { add: 1000, mul: 25 },
+      }[difficulty];
+
+      let attempts = 0;
+      while (generated.length < count && attempts < count * 10) {
+        attempts++;
         const op = ops[Math.floor(Math.random() * ops.length)];
-        const range = difficulty === 'easy' ? 20 : difficulty === 'medium' ? 100 : 1000;
+        let a: number, b: number, answer: number, text: string;
 
         switch (op) {
           case '+':
-            a = Math.floor(Math.random() * range) + 1;
-            b = Math.floor(Math.random() * range) + 1;
+            a = Math.floor(Math.random() * ranges.add) + 10;
+            b = Math.floor(Math.random() * ranges.add) + 10;
             answer = a + b;
             text = `${a} + ${b} = ?`;
             break;
           case '-':
-            a = Math.floor(Math.random() * range) + 1;
-            b = Math.floor(Math.random() * a) + 1;
+            a = Math.floor(Math.random() * ranges.add) + 20;
+            b = Math.floor(Math.random() * (a - 1)) + 1;
             answer = a - b;
             text = `${a} - ${b} = ?`;
             break;
           case '×':
-            a = Math.floor(Math.random() * Math.sqrt(range)) + 1;
-            b = Math.floor(Math.random() * Math.sqrt(range)) + 1;
+            a = Math.floor(Math.random() * ranges.mul) + 2;
+            b = Math.floor(Math.random() * ranges.mul) + 2;
             answer = a * b;
             text = `${a} \\times ${b} = ?`;
             break;
           case '÷':
-          default:
-            b = Math.floor(Math.random() * 12) + 2;
-            answer = Math.floor(Math.random() * 12) + 1;
+            b = Math.floor(Math.random() * ranges.mul) + 2;
+            answer = Math.floor(Math.random() * ranges.mul) + 1;
             a = b * answer;
             text = `${a} \\div ${b} = ?`;
             break;
+          case 'frac':
+            b = [2, 3, 4, 5, 6, 8, 10][Math.floor(Math.random() * 7)];
+            a = Math.floor(Math.random() * (b - 1)) + 1;
+            const b2 = [2, 3, 4, 5, 6, 8, 10][Math.floor(Math.random() * 7)];
+            const a2 = Math.floor(Math.random() * (b2 - 1)) + 1;
+            if (b === b2) {
+              answer = a + a2;
+              text = `\\frac{${a}}{${b}} + \\frac{${a2}}{${b2}} = ?`;
+            } else {
+              answer = a * b2 + a2 * b;
+              text = `\\frac{${a}}{${b}} + \\frac{${a2}}{${b2}} = \\frac{?}{${b * b2}}`;
+            }
+            break;
+          case 'pow':
+          default:
+            a = Math.floor(Math.random() * 10) + 2;
+            answer = a * a;
+            text = `${a}^2 = ?`;
+            break;
         }
 
-        // Generate wrong options
+        const key = text;
+        if (usedKeys.has(key)) continue;
+        usedKeys.add(key);
+
+        // Generate wrong options that are distinct
         const wrongSet = new Set<number>();
-        while (wrongSet.size < 3) {
-          const wrong = answer + (Math.floor(Math.random() * 10) - 5);
-          if (wrong !== answer && wrong >= 0) wrongSet.add(wrong);
+        let wrongAttempts = 0;
+        while (wrongSet.size < 3 && wrongAttempts < 50) {
+          wrongAttempts++;
+          const offset = Math.floor(Math.random() * Math.max(10, Math.abs(answer) * 0.3)) + 1;
+          const sign = Math.random() < 0.5 ? 1 : -1;
+          const wrong = answer + sign * offset;
+          if (wrong !== answer && wrong >= 0 && !wrongSet.has(wrong)) wrongSet.add(wrong);
         }
-        const wrongs = Array.from(wrongSet);
-        const allOptions = [answer.toString(), ...wrongs.map(String)].sort(() => Math.random() - 0.5);
+        // Fallback if not enough wrongs
+        let fallback = 1;
+        while (wrongSet.size < 3) {
+          if (answer + fallback !== answer && !wrongSet.has(answer + fallback)) wrongSet.add(answer + fallback);
+          fallback++;
+        }
 
+        const allOptions = shuffleArray([answer.toString(), ...Array.from(wrongSet).map(String)]);
+
+        const q = createEmptyQuestion();
         q.question_text = text;
         q.options = allOptions;
         q.correct_answer = answer.toString();
@@ -337,63 +393,84 @@ export default function CreateTest() {
         generated.push(q);
       }
     } else {
-      // English
+      // English - expanded pool for uniqueness
       const easyWords = [
-        { word: 'apple', options: ['A fruit', 'A car', 'A color', 'A number'] },
-        { word: 'book', options: ['Something to read', 'A drink', 'A tool', 'A sport'] },
-        { word: 'cat', options: ['An animal', 'A plant', 'A building', 'A machine'] },
-        { word: 'dog', options: ['A pet animal', 'A fish', 'A bird', 'An insect'] },
-        { word: 'house', options: ['A building to live in', 'A type of food', 'A vehicle', 'A musical instrument'] },
-        { word: 'water', options: ['A liquid we drink', 'A solid material', 'A gas', 'A type of metal'] },
-        { word: 'sun', options: ['A star', 'A planet', 'A moon', 'An asteroid'] },
-        { word: 'tree', options: ['A plant', 'An animal', 'A mineral', 'A liquid'] },
+        { word: 'apple', answer: 'A fruit', wrongs: ['A car', 'A color', 'A number'] },
+        { word: 'book', answer: 'Something to read', wrongs: ['A drink', 'A tool', 'A sport'] },
+        { word: 'cat', answer: 'An animal', wrongs: ['A plant', 'A building', 'A machine'] },
+        { word: 'dog', answer: 'A pet animal', wrongs: ['A fish', 'A bird', 'An insect'] },
+        { word: 'house', answer: 'A building to live in', wrongs: ['A type of food', 'A vehicle', 'A musical instrument'] },
+        { word: 'water', answer: 'A liquid we drink', wrongs: ['A solid material', 'A gas', 'A type of metal'] },
+        { word: 'sun', answer: 'A star', wrongs: ['A planet', 'A moon', 'An asteroid'] },
+        { word: 'tree', answer: 'A plant', wrongs: ['An animal', 'A mineral', 'A liquid'] },
+        { word: 'fish', answer: 'An aquatic animal', wrongs: ['A bird', 'A fruit', 'A tool'] },
+        { word: 'car', answer: 'A vehicle', wrongs: ['A fruit', 'An animal', 'A building'] },
+        { word: 'moon', answer: 'Earth\'s natural satellite', wrongs: ['A star', 'A planet', 'A comet'] },
+        { word: 'pencil', answer: 'A writing tool', wrongs: ['A food item', 'A toy', 'A drink'] },
+        { word: 'chair', answer: 'Furniture to sit on', wrongs: ['A type of food', 'A vehicle', 'A sport'] },
+        { word: 'rain', answer: 'Water falling from clouds', wrongs: ['A type of food', 'A musical instrument', 'A color'] },
+        { word: 'school', answer: 'A place to learn', wrongs: ['A type of food', 'An animal', 'A vehicle'] },
+        { word: 'flower', answer: 'Part of a plant', wrongs: ['An animal', 'A vehicle', 'A tool'] },
+        { word: 'snow', answer: 'Frozen water crystals', wrongs: ['A plant', 'A metal', 'A gas'] },
+        { word: 'teacher', answer: 'A person who teaches', wrongs: ['A type of food', 'An animal', 'A tool'] },
+        { word: 'bird', answer: 'A flying animal', wrongs: ['A fish', 'A plant', 'A mineral'] },
+        { word: 'mountain', answer: 'A tall landform', wrongs: ['A body of water', 'A type of cloud', 'A musical instrument'] },
       ];
 
       const mediumSentences = [
-        { q: 'She ___ to school every day.', options: ['goes', 'go', 'going', 'gone'], answer: 'goes' },
-        { q: 'They ___ playing football now.', options: ['are', 'is', 'was', 'be'], answer: 'are' },
-        { q: 'I ___ a new book yesterday.', options: ['bought', 'buy', 'buying', 'buys'], answer: 'bought' },
-        { q: 'He ___ already finished his homework.', options: ['has', 'have', 'had', 'having'], answer: 'has' },
-        { q: 'We will ___ to the park tomorrow.', options: ['go', 'goes', 'going', 'went'], answer: 'go' },
-        { q: 'The children ___ in the garden.', options: ['are playing', 'is playing', 'was playing', 'plays'], answer: 'are playing' },
-        { q: 'She ___ English very well.', options: ['speaks', 'speak', 'speaking', 'spoke'], answer: 'speaks' },
-        { q: 'If it rains, I ___ stay home.', options: ['will', 'would', 'shall', 'should'], answer: 'will' },
+        { q: 'She ___ to school every day.', answer: 'goes', wrongs: ['go', 'going', 'gone'] },
+        { q: 'They ___ playing football now.', answer: 'are', wrongs: ['is', 'was', 'be'] },
+        { q: 'I ___ a new book yesterday.', answer: 'bought', wrongs: ['buy', 'buying', 'buys'] },
+        { q: 'He ___ already finished his homework.', answer: 'has', wrongs: ['have', 'had', 'having'] },
+        { q: 'We will ___ to the park tomorrow.', answer: 'go', wrongs: ['goes', 'going', 'went'] },
+        { q: 'The children ___ in the garden.', answer: 'are playing', wrongs: ['is playing', 'was playing', 'plays'] },
+        { q: 'She ___ English very well.', answer: 'speaks', wrongs: ['speak', 'speaking', 'spoke'] },
+        { q: 'If it rains, I ___ stay home.', answer: 'will', wrongs: ['would', 'shall', 'should'] },
+        { q: 'The cat is ___ than the dog.', answer: 'smaller', wrongs: ['small', 'smallest', 'more small'] },
+        { q: 'I have ___ been to London.', answer: 'never', wrongs: ['ever', 'always', 'sometimes'] },
+        { q: 'She ___ her homework before dinner.', answer: 'does', wrongs: ['do', 'doing', 'done'] },
+        { q: 'There ___ many books on the table.', answer: 'are', wrongs: ['is', 'was', 'be'] },
+        { q: 'He is the ___ student in the class.', answer: 'tallest', wrongs: ['taller', 'tall', 'more tall'] },
+        { q: 'We ___ to the cinema last weekend.', answer: 'went', wrongs: ['go', 'goes', 'going'] },
+        { q: 'She ___ reading when I called.', answer: 'was', wrongs: ['is', 'were', 'been'] },
+        { q: 'The sun ___ in the east.', answer: 'rises', wrongs: ['rise', 'rising', 'rose'] },
+        { q: 'I ___ like to have some water.', answer: 'would', wrongs: ['will', 'shall', 'can'] },
+        { q: 'They have ___ lived here for ten years.', answer: 'already', wrongs: ['yet', 'still', 'just'] },
+        { q: 'She can ___ very fast.', answer: 'run', wrongs: ['runs', 'running', 'ran'] },
+        { q: 'We ___ our grandparents every Sunday.', answer: 'visit', wrongs: ['visits', 'visiting', 'visited'] },
       ];
 
-      const pool = difficulty === 'easy' ? easyWords : mediumSentences;
+      const hardSentences = [
+        { q: 'If I ___ rich, I would travel the world.', answer: 'were', wrongs: ['was', 'am', 'be'] },
+        { q: 'The letter ___ by the time I arrived.', answer: 'had been sent', wrongs: ['has sent', 'was sending', 'is sent'] },
+        { q: 'Neither Tom ___ Jerry was at the party.', answer: 'nor', wrongs: ['or', 'and', 'but'] },
+        { q: 'She asked me where I ___ going.', answer: 'was', wrongs: ['am', 'is', 'were'] },
+        { q: 'The project must ___ by Friday.', answer: 'be completed', wrongs: ['complete', 'completing', 'completed'] },
+        { q: 'I wish I ___ harder last year.', answer: 'had studied', wrongs: ['studied', 'study', 'have studied'] },
+        { q: 'By next month, she ___ here for two years.', answer: 'will have worked', wrongs: ['works', 'worked', 'has worked'] },
+        { q: 'The book, ___ was on the table, is mine.', answer: 'which', wrongs: ['who', 'whom', 'what'] },
+        { q: 'Not only ___ he smart, but also hardworking.', answer: 'is', wrongs: ['was', 'are', 'does'] },
+        { q: 'She ___ to the doctor if she feels worse.', answer: 'will go', wrongs: ['goes', 'went', 'going'] },
+      ];
 
-      for (let i = 0; i < Math.min(count, pool.length); i++) {
+      const pool = difficulty === 'easy' ? easyWords : difficulty === 'medium' ? mediumSentences : hardSentences;
+      const shuffledPool = shuffleArray([...pool]);
+
+      for (let i = 0; i < count; i++) {
+        const item = shuffledPool[i % shuffledPool.length];
         const q = createEmptyQuestion();
-        const item = pool[i % pool.length];
 
         if (difficulty === 'easy') {
           const w = item as typeof easyWords[0];
           q.question_text = `What is "${w.word}"?`;
-          q.options = w.options;
-          q.correct_answer = w.options[0];
+          const allOpts = shuffleArray([w.answer, ...w.wrongs]);
+          q.options = allOpts;
+          q.correct_answer = w.answer;
         } else {
           const s = item as typeof mediumSentences[0];
           q.question_text = s.q;
-          q.options = s.options;
-          q.correct_answer = s.answer;
-        }
-        q.question_type = 'multiple_choice';
-        generated.push(q);
-      }
-
-      // If need more than pool size, repeat with randomization
-      while (generated.length < count) {
-        const item = pool[Math.floor(Math.random() * pool.length)];
-        const q = createEmptyQuestion();
-        if (difficulty === 'easy') {
-          const w = item as typeof easyWords[0];
-          q.question_text = `What is "${w.word}"?`;
-          q.options = w.options;
-          q.correct_answer = w.options[0];
-        } else {
-          const s = item as typeof mediumSentences[0];
-          q.question_text = s.q;
-          q.options = s.options;
+          const allOpts = shuffleArray([s.answer, ...s.wrongs]);
+          q.options = allOpts;
           q.correct_answer = s.answer;
         }
         q.question_type = 'multiple_choice';
