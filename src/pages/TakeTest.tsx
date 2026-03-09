@@ -75,7 +75,10 @@ export default function TakeTest() {
       
       if (remaining <= 0) {
         setTimeRemaining(0);
+        clearInterval(interval);
+        // Auto-submit the test when time runs out
         handleSubmit();
+        return;
       } else {
         setTimeRemaining(remaining);
       }
@@ -294,7 +297,7 @@ export default function TakeTest() {
   }
 
   if (testCompleted && result) {
-    const percentage = (result.score / result.maxScore) * 100;
+    const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
 
     return (
       <div className="container py-8">
